@@ -5,22 +5,84 @@ A standalone local InspectFlow demo for the **Tester / Client Reviewer** actor. 
 
 ## Run
 
-Requires Node.js 22+, pnpm 12.16.1, and PostgreSQL. The root commands below assume PowerShell on Windows. The original project's services can keep their usual ports.
+This branch demonstrates the Tester / Client Reviewer locally. Cloning the repository downloads code and screenshots. It does not copy a running API, PostgreSQL server, database records, or your private `.env` file.
 
-1. From the project root, run `pnpm install --frozen-lockfile`. Keep the checked-in `pnpm-lock.yaml` and use pnpm in this copy. The workspace uses the hoisted linker with package copies for Windows compatibility and disables links for unreferenced workspace packages.
-2. Start the included local database with `docker compose up -d`, or use an existing PostgreSQL server and create a separate `inspectflow_actor` database.
-3. Copy `apps/api/.env.example` to `apps/api/.env` if it does not exist. The example points to the included Docker database. For an existing PostgreSQL server, use its connection details for the separate database. Set local JWT secrets.
-4. Run `pnpm setup:db` to generate Prisma Client, apply the migrations and seed the demo.
-5. Run `pnpm dev` to start the three apps. You can also use `pnpm dev:api`, `pnpm dev:web` or `pnpm dev:staging` in separate terminals.
+### First setup on your laptop
 
-| Service | URL |
-| --- | --- |
-| Dashboard | http://localhost:3001/login |
-| Staging shop and report widget | http://localhost:4001/ |
-| API health | http://localhost:5002/health |
-| Swagger | http://localhost:5002/api/docs |
+Use Node.js 22 (see `.nvmrc`), the pnpm version pinned in `package.json` (`12.16.1`), and PostgreSQL. The commands below are for the VS Code PowerShell terminal opened at the cloned repository root.
 
-Demo account is `tester@inspectflow.demo` with the local fixture password `Demo@12345`.
+1. Select the `test` branch. Check with `git branch --show-current`. If your working files are saved and you are on another branch, use `git switch test`. On a fresh clone that has only the remote branch, use `git switch --track origin/test` instead.
+2. Install the project dependencies.
+
+   ```powershell
+   pnpm install --frozen-lockfile
+   ```
+
+3. Choose **one** local database option.
+
+   **Option A — included Docker database.** Install and start Docker Desktop first. From the repository root, run
+
+   ```powershell
+   docker compose up -d postgres
+   docker compose exec postgres pg_isready -U inspectflow_actor -d inspectflow_actor
+   ```
+
+   Wait for `accepting connections`. The checked-in Compose file maps the laptop's port `5434` to PostgreSQL's container port `5432`. It creates the separate database `inspectflow_actor` with the demo user and password in `.env.example`.
+
+   **Option B — PostgreSQL already installed.** Start that PostgreSQL service and create a new empty database called `inspectflow_actor` using pgAdmin or psql. Use its actual local username, password and port in `DATABASE_URL`. Do not run the Docker commands for this option. The schema and demo data are installed in step 5.
+
+4. Create the API environment file only if it does not already exist.
+
+   ```powershell
+   if (-not (Test-Path 'apps/api/.env')) {
+     Copy-Item 'apps/api/.env.example' 'apps/api/.env'
+   }
+   ```
+
+   Open `apps/api/.env`. For Option A, the database line must match the included Compose configuration
+
+   ```dotenv
+   DATABASE_URL=postgresql://inspectflow_actor:inspectflow_actor_demo@127.0.0.1:5434/inspectflow_actor
+   PORT=5002
+   STORAGE_DRIVER=local
+   ```
+
+   For Option B, replace the database connection details with your own local values. Keep all the other example settings and set local `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` and `COOKIE_SECRET` values. Keep `.env` on your laptop and out of Git. These demo database credentials are only for the local Compose setup.
+
+5. Generate Prisma Client, apply the existing migrations, and seed the Tester account and fixtures.
+
+   ```powershell
+   pnpm setup:db
+   ```
+
+   Continue only when the command succeeds. The seed accepts a separate database named `inspectflow_actor` or `inspectflow_actor_...`. It creates the Tester account and starting report/build states. It does not reset existing ticket states or build decisions.
+
+6. Start the backend and **leave this terminal running**.
+
+   ```powershell
+   pnpm dev:api
+   ```
+
+   Wait for `InspectFlow API listening on port 5002`. In Postman Desktop, send `GET http://localhost:5002/health` with No Auth. Continue only after it returns HTTP `200` with `"database": "up"`.
+
+### Each later demo session
+
+Start your local PostgreSQL service again (Option A uses `docker compose up -d postgres`), run `pnpm dev:api`, then log in again in Postman for a fresh access token. You do not need to reinstall dependencies or reapply the seed every time. Keep both PostgreSQL and the API running throughout the demonstration.
+
+`localhost` means the computer where Postman is running. On your laptop, it reaches your laptop's API. These addresses are not public deployment links. The API binds to `127.0.0.1`; if `localhost` resolves to `::1` and fails, use `http://127.0.0.1:5002` consistently for the API requests.
+
+### Which local URL is used where?
+
+| Service | Local URL | Open with | Required for the ten Postman checks? |
+| --- | --- | --- | --- |
+| API health | `http://localhost:5002/health` | Postman, GET | Yes, API and database must be running |
+| API documentation | `http://localhost:5002/api/docs` | Browser, Swagger UI | Optional reference |
+| Tester dashboard | `http://localhost:3001/login` | Browser | Optional UI demonstration |
+| Staging shop and reporting widget | `http://localhost:4001/` | Browser | Optional screenshot submission demonstration |
+
+The dashboard and staging URLs serve web pages. For these ten backend checks, Postman sends requests to port **5002**. To also demonstrate the UI, follow each frontend's `.env.example`, and run `pnpm dev:web` and `pnpm dev:staging` in separate terminals. Alternatively, `pnpm dev` starts API, dashboard and staging together; do not start a second API on the same port.
+
+The seeded local account is `tester@inspectflow.demo` with fixture password `Demo@12345`, unless you intentionally set a different `DEMO_PASSWORD` when first seeding.
 
 ## Interface and working features
 
@@ -39,61 +101,291 @@ Run pnpm build to build all four apps without starting a server. The build runs 
 
 ## Tester backend checks in Postman
 
-### Database used for these checks
+### Scope and screenshot evidence
 
-We used a separate local PostgreSQL database because the full project's shared database was outside the scope of this Tester backend check. In Postman, Verify Fix and Reopen change ticket records, and Approve or Request Changes writes a build decision. The separate database let us test those changes without touching the shared project data.
+The ten images below are the original Postman captures from 18 November 2026 (Bangladesh time), saved individually as PNG. Each image keeps its original dimensions, without a combined strip or resizing. The source captures were JPEG-encoded despite their .png filenames; they have been converted to actual PNG without changing the image content or adding further JPEG compression. Conversion cannot restore detail already lost in the original capture. Click **Open original PNG** under any check for the full-size image. Some screenshot timestamps are UTC and therefore show 17 November.
 
-1. We started a temporary PostgreSQL instance on `127.0.0.1:55433` and created a database named `inspectflow_actor_postman`.
-2. We pointed the API to that database by setting `DATABASE_URL` in the test process. The backend source, Prisma schema, and migration files needed no changes for this connection.
-3. We applied the existing Prisma migrations and ran the Tester seed. The seed created a demo account, sample tickets, and two builds for review.
-4. We started the API on port `5002` and ran the checks below in Postman. The ticket status and build decision changes were saved only in the local demo database. We stopped the temporary API and PostgreSQL instance after taking the screenshots.
+These are records of the earlier local run, not a claim that a server is currently running. That run used a temporary PostgreSQL instance at `127.0.0.1:55433`, database `inspectflow_actor_postman`, and API port `5002`. Both temporary processes were stopped after the captures. **Port 55433 is historical, not the port to copy for the Docker setup above, which uses 5434.**
 
-To reproduce the setup, create a separate local database named `inspectflow_actor_postman`. Copy `apps/api/.env.example` to `apps/api/.env` and set `DATABASE_URL` to the local database connection string, for example `postgresql://USER:PASSWORD@127.0.0.1:55433/inspectflow_actor_postman?schema=public`. Replace the username, password, and port with your own local values. From the repository root, run `pnpm setup:db` to generate Prisma Client, apply the migrations, and seed the demo. Then run `pnpm dev:api`. See the [Run instructions](#run) for installing the dependencies and starting PostgreSQL. Keep the actual `.env` local.
+The shared full-project database was outside the scope of the Tester checks. Verify, Reopen and build decisions write data, so we used a separate local database to keep the original project's data untouched. We applied the existing schema, migrations and Tester seed, and set `DATABASE_URL` in the test process. The backend source, schema and migration files required no change for that connection.
 
-### Running the requests
+The original images also include Postman's earlier History entries. Follow the selected request and the instructions under each check; unrelated History entries are not part of this Tester demonstration. The images do not display access-token values.
 
-Open Postman Desktop on the same PC as the running local API. Use `http://localhost:5002` as the base URL for these checks. The local Swagger page is `http://localhost:5002/api/docs`.
+### Before sending the ten requests
 
-1. Send `POST http://localhost:5002/auth/login` with **Body → raw → JSON**. Use the demo email and password from the Run section as the `email` and `password` values. A successful login returns `200 OK` and an `accessToken`.
-2. In protected requests, choose **Authorization → Bearer Token** and paste the access token. To reproduce the unauthorized check below, create a separate request with **No Auth**.
-3. Send `GET http://localhost:5002/projects` and copy the ID of **Acme Shop Reviewer Demo**. Use that ID in `GET http://localhost:5002/projects/{projectId}/tickets` and `GET http://localhost:5002/projects/{projectId}/builds`. Copy the IDs of IF-1, IF-2, Checkout build, and Catalogue build from those responses. Replace every `{...Id}` in the request table with the ID from your own database.
-4. Run the checks in the order shown. For status updates and build decisions, use **Body → raw → JSON**. The writes change demo records, so use a separate seeded database for a fresh rehearsal.
+Complete [First setup on your laptop](#first-setup-on-your-laptop) and confirm the health response. Use Postman Desktop on the same computer as the running backend.
 
-| Screenshot | Postman request | Result observed |
-| --- | --- | --- |
-| 1 | `GET /health` | `200 OK` with `status: ok` and `database: up`. The API completed a database query. |
-| 2 | `GET /projects` without a token | `401 Unauthorized`. This project list requires authentication. |
-| 3 | `GET /projects/{projectId}/tickets` with the Tester token | `200 OK`. The `items` array contains the Tester's reports. |
-| 4 | `POST /builds/{checkoutBuildId}/decision` with `{"decision":"APPROVED"}` | `409 Conflict`. IF-1 is a High severity ticket and has yet to be verified. |
-| 5 | `POST /tickets/{if1Id}/status` with `{"status":"VERIFIED"}` | `201 Created`. IF-1 changes from `RESOLVED` to `VERIFIED`. |
-| 6 | `GET /tickets/{if1Id}` | `200 OK`. A fresh read returns the saved `VERIFIED` status. |
-| 7 | `GET /builds/{checkoutBuildId}/review` | `200 OK`. The response includes the current build, its review state and the `TESTER_CLIENT` role. |
-| 8 | Repeat the Checkout approval request from step 4 | `201 Created`. The response records `approval.decision: APPROVED` and `approval.commitSha`. |
-| 9 | `POST /tickets/{if2Id}/status` with `{"status":"OPEN","note":"Issue still visible in the QA demo"}` | `201 Created`. The separate verified report reopens as `OPEN`. |
-| 10 | `POST /builds/{catalogueBuildId}/decision` with `{"decision":"CHANGES_REQUESTED","note":"Please fix the remaining catalogue display issue."}` | `201 Created`. The decision and note are recorded against Catalogue build. |
+**A. Log in for a fresh dashboard token**
 
-### Exact local URLs from the screenshots
+Choose method **POST** and paste only this URL into the address field
 
-These are the full URLs used in the captured Postman run. The UUIDs came from the temporary demo database. After seeding a new local database, keep the same host and route structure and substitute the IDs you get from the API in step 3 above.
+```text
+http://localhost:5002/auth/login
+```
 
-| Screenshot | Method | Full local URL |
-| --- | --- | --- |
-| 1 · API health | GET | `http://localhost:5002/health` |
-| 2 · Projects without a token | GET | `http://localhost:5002/projects` |
-| 3 · My Reports | GET | `http://localhost:5002/projects/8d25c4a1-7eca-466c-a288-bd764501d910/tickets` |
-| 4 · Checkout approval blocked | POST | `http://localhost:5002/builds/e15a3e6c-c24c-4d1a-96c5-b72ad32519a2/decision` |
-| 5 · Verify Fix | POST | `http://localhost:5002/tickets/1b2344a8-2d8e-4d61-bb2c-865a91cdd3a1/status` |
-| 6 · Read the verified ticket | GET | `http://localhost:5002/tickets/1b2344a8-2d8e-4d61-bb2c-865a91cdd3a1` |
-| 7 · Checkout build review | GET | `http://localhost:5002/builds/e15a3e6c-c24c-4d1a-96c5-b72ad32519a2/review` |
-| 8 · Checkout approval accepted | POST | `http://localhost:5002/builds/e15a3e6c-c24c-4d1a-96c5-b72ad32519a2/decision` |
-| 9 · Reopen a separate report | POST | `http://localhost:5002/tickets/a3c0d8b6-de9a-4276-a5a2-8c3a78f8355a/status` |
-| 10 · Request changes on Catalogue | POST | `http://localhost:5002/builds/b06330aa-902a-491c-9897-4760a15c95da/decision` |
+Choose **No Auth**, then **Body → raw → JSON**. Send
 
-### Postman screenshots
+```json
+{
+  "email": "tester@inspectflow.demo",
+  "password": "Demo@12345"
+}
+```
 
-These screenshots were captured on 18 November 2026 in Postman Desktop against a separate local PostgreSQL demo database. The images show the request URL and response. The login response and Authorization header values are omitted. Open the image for the full-size view.
+Expect `200 OK`. Copy the response's `accessToken`. For protected requests below, choose **Authorization → Bearer Token** and paste only the token value. Do not paste the entire JSON or add a second `Bearer` prefix. The example access-token lifetime is 15 minutes; log in again if it expires. Keep the token out of screenshots and commits.
 
-![Postman screenshots for Tester API checks 1 through 10](docs/postman/tester-api-checks.png)
+**B. Get the IDs from your own database**
+
+Create/select a Postman environment named `Tester Local`. Add the following variables using the values returned by your local API. Use their local values and keep this environment selected while sending requests.
+
+| Variable | How to obtain its value |
+| --- | --- |
+| `projectId` | Send authenticated `GET http://localhost:5002/projects`. Find **Acme Shop Reviewer Demo** and copy its `id`. |
+| `if1Id` | Send authenticated `GET http://localhost:5002/projects/{{projectId}}/tickets`. In `items`, find ticket `number: 1` (Checkout button fix ready for verification) and copy its `id`. |
+| `if2Id` | From the same ticket list, find ticket `number: 2` (Footer typo still visible) and copy its `id`. |
+| `checkoutBuildId` | Send authenticated `GET http://localhost:5002/projects/{{projectId}}/builds`. Find **Checkout build** and copy its `id`. |
+| `catalogueBuildId` | From the same build list, find **Catalogue build** and copy its `id`. |
+
+`{{projectId}}` and the other double-brace names are Postman variables. They must have values before sending. If you prefer not to use an environment, replace the whole `{{...}}` section manually with the returned ID, leaving no braces. Do not type `IF-1` as a ticket ID; the route expects the UUID from its `id` field.
+
+Project and ticket IDs are generated in each new database, so copying their old screenshot UUIDs can fail. The current seed explicitly fixes the two build IDs, but reading them from the API also checks that the builds exist in your database.
+
+**C. Check the starting states**
+
+For the exact sequence below, IF-1 must be `RESOLVED`, IF-2 must be `VERIFIED`, and both builds must be `IN_REVIEW`. Run steps 1–10 in order. Steps 5, 8, 9 and 10 change database records. Repeating them after a successful rehearsal may correctly return a conflict. Running `pnpm setup:db` again preserves those records; it does not reset them. For an identical new rehearsal, create a separate empty local database such as `inspectflow_actor_rehearsal2`, point only this demo's `DATABASE_URL` to it, run `pnpm setup:db`, restart the API, and get its IDs and a new token.
+
+### Ten checks with individual screenshots
+
+Choose the HTTP method separately in Postman. Paste the URL without a `GET` or `POST` prefix. For GET requests, leave Body empty. For POST requests below, choose **Body → raw → JSON**, which uses `Content-Type: application/json`.
+
+#### 01. API and database health
+
+**Method** `GET` · **Authorization** No Auth
+
+**URL to use on your laptop**
+
+```text
+http://localhost:5002/health
+```
+
+**Expected response** `200 OK`. The response has `status: "ok"` and `database: "up"`. The health handler performs a database query.
+
+![Check 01 — API and database health](docs/postman/01-api-health.png)
+
+[Open original PNG](docs/postman/01-api-health.png)
+
+#### 02. Authentication is required
+
+**Method** `GET` · **Authorization** No Auth
+
+**URL to use on your laptop**
+
+```text
+http://localhost:5002/projects
+```
+
+**Expected response** `401 Unauthorized`. This is an intentional rejection. It proves an unauthenticated request cannot list projects. Switch back to Bearer Token for the remaining checks.
+
+![Check 02 — Authentication is required](docs/postman/02-projects-without-token.png)
+
+[Open original PNG](docs/postman/02-projects-without-token.png)
+
+#### 03. List the Tester's reports
+
+**Method** `GET` · **Authorization** Bearer Token
+
+**URL to use on your laptop**
+
+```text
+http://localhost:5002/projects/{{projectId}}/tickets
+```
+
+**Expected response** `200 OK`. The `items` array contains the reports visible to the Tester. Find IF-1 and IF-2 by their `number` fields.
+
+![Check 03 — List the Tester's reports](docs/postman/03-my-reports.png)
+
+[Open original PNG](docs/postman/03-my-reports.png)
+
+#### 04. Block approval before verification
+
+**Method** `POST` · **Authorization** Bearer Token
+
+**URL to use on your laptop**
+
+```text
+http://localhost:5002/builds/{{checkoutBuildId}}/decision
+```
+
+**Body → raw → JSON**
+
+```json
+{
+  "decision": "APPROVED"
+}
+```
+
+**Expected response** `409 Conflict`. With Checkout build still `IN_REVIEW`, IF-1 has High severity and is not verified. The response explains that blocking tickets are not verified. This rejection is the expected business rule.
+
+![Check 04 — Block approval before verification](docs/postman/04-approval-blocked.png)
+
+[Open original PNG](docs/postman/04-approval-blocked.png)
+
+#### 05. Verify the resolved fix
+
+**Method** `POST` · **Authorization** Bearer Token
+
+**URL to use on your laptop**
+
+```text
+http://localhost:5002/tickets/{{if1Id}}/status
+```
+
+**Body → raw → JSON**
+
+```json
+{
+  "status": "VERIFIED"
+}
+```
+
+**Expected response** `201 Created`. IF-1 changes from `RESOLVED` to `VERIFIED`. The response contains the updated ticket. This writes the ticket status in the local database.
+
+![Check 05 — Verify the resolved fix](docs/postman/05-verify-fix.png)
+
+[Open original PNG](docs/postman/05-verify-fix.png)
+
+#### 06. Read the saved ticket again
+
+**Method** `GET` · **Authorization** Bearer Token
+
+**URL to use on your laptop**
+
+```text
+http://localhost:5002/tickets/{{if1Id}}
+```
+
+**Expected response** `200 OK`. A separate read returns `status: "VERIFIED"`, confirming the update is persisted.
+
+![Check 06 — Read the saved ticket again](docs/postman/06-ticket-reread.png)
+
+[Open original PNG](docs/postman/06-ticket-reread.png)
+
+#### 07. Review Checkout build
+
+**Method** `GET` · **Authorization** Bearer Token
+
+**URL to use on your laptop**
+
+```text
+http://localhost:5002/builds/{{checkoutBuildId}}/review
+```
+
+**Expected response** `200 OK`. The response includes the build and `myRole: "TESTER_CLIENT"`. Inspect the full response for `blockingTickets`, `canApprove` and `canDecide`. After verification, no blocking ticket remains for the seeded Checkout build.
+
+![Check 07 — Review Checkout build](docs/postman/07-build-review.png)
+
+[Open original PNG](docs/postman/07-build-review.png)
+
+#### 08. Approve the verified build
+
+**Method** `POST` · **Authorization** Bearer Token
+
+**URL to use on your laptop**
+
+```text
+http://localhost:5002/builds/{{checkoutBuildId}}/decision
+```
+
+**Body → raw → JSON**
+
+```json
+{
+  "decision": "APPROVED"
+}
+```
+
+**Expected response** `201 Created`. The response records `approval.decision: "APPROVED"` and `approval.commitSha`. The build changes to `APPROVED`. This is the same request as check 4 after satisfying the verification rule.
+
+![Check 08 — Approve the verified build](docs/postman/08-build-approved.png)
+
+[Open original PNG](docs/postman/08-build-approved.png)
+
+#### 09. Reopen the separate verified report
+
+**Method** `POST` · **Authorization** Bearer Token
+
+**URL to use on your laptop**
+
+```text
+http://localhost:5002/tickets/{{if2Id}}/status
+```
+
+**Body → raw → JSON**
+
+```json
+{
+  "status": "OPEN",
+  "note": "Issue still visible in the QA demo"
+}
+```
+
+**Expected response** `201 Created`. IF-2 changes from `VERIFIED` to `OPEN`. Use IF-2 here so the Checkout approval example remains independent.
+
+![Check 09 — Reopen the separate verified report](docs/postman/09-reopen-ticket.png)
+
+[Open original PNG](docs/postman/09-reopen-ticket.png)
+
+#### 10. Request changes on Catalogue build
+
+**Method** `POST` · **Authorization** Bearer Token
+
+**URL to use on your laptop**
+
+```text
+http://localhost:5002/builds/{{catalogueBuildId}}/decision
+```
+
+**Body → raw → JSON**
+
+```json
+{
+  "decision": "CHANGES_REQUESTED",
+  "note": "Please fix the remaining catalogue display issue."
+}
+```
+
+**Expected response** `201 Created`. The response records the `CHANGES_REQUESTED` decision, note and commit SHA. The build changes to `REJECTED`. A note is required, and this build must still be `IN_REVIEW`.
+
+![Check 10 — Request changes on Catalogue build](docs/postman/10-request-changes.png)
+
+[Open original PNG](docs/postman/10-request-changes.png)
+
+### If a URL does not work
+
+| Symptom | What to check |
+| --- | --- |
+| `Could not send request`, `ECONNREFUSED`, or no response | Start PostgreSQL and `pnpm dev:api` on the same laptop. Leave the terminal open. Confirm the startup message and port 5002. If the error mentions `::1`, use `127.0.0.1` instead of `localhost`. A screenshot or GitHub push does not start a server. |
+| API exits during startup / cannot connect to database | Read the terminal error. Match `.env` credentials, database name and port to the running local PostgreSQL service. The included Docker setup uses 5434, not the historical screenshot database port 55433. |
+| `docker` is not recognized | Install/start Docker Desktop for Option A, or use installed PostgreSQL via Option B. Docker is not installed by `pnpm install`. |
+| `pnpm` is not recognized | Install the pnpm version pinned in `package.json`, then reopen your terminal and check `pnpm --version`. |
+| `/health` works but a protected request returns 401 | Log in again and set Bearer Token. The 401 in check 2 is intentional. |
+| 400 / invalid UUID | Fill the selected Postman environment variables or replace them manually with actual returned UUIDs. Check JSON body and Content-Type. |
+| 404 / record not found | Read project, ticket and build IDs from this laptop's database. Do not reuse another database's project/ticket IDs. Also check the method and path. |
+| 403 | Check that the token belongs to the seeded Tester account and the record belongs to its project. |
+| 409 on build approval | Before verification, this is expected. After a previous approval/rejection, the build is no longer `IN_REVIEW`. Inspect its current state instead of repeatedly sending the same write. |
+| Ticket status change rejected | Check the current state. The Tester can verify a `RESOLVED` ticket, or reopen a `RESOLVED`/`VERIFIED` ticket. The Tester cannot resolve an `OPEN` ticket in this actor-only demo. |
+| HTML appears instead of API JSON | Use API port 5002. Port 3001 is the dashboard, port 4001 is the staging site, and `/api/docs` is the Swagger web page. |
+| 429 | Wait for the rate-limit window before retrying, especially repeated login attempts. |
+
+If asking for help, include the HTTP method, URL, status/error text and API terminal error. Omit passwords and bearer tokens.
+
+### Capturing your laptop demonstration
+
+Once the local setup works, repeat the ten checks in order against a fresh rehearsal database. For each image, keep the request method and URL, HTTP status and relevant response JSON visible. For POST requests, also show the JSON body when the window has enough space. Use a readable Postman window size, save each check as its own PNG, and avoid showing login-token responses or Authorization values. GitHub may fit the preview to the page width; **Open original PNG** opens the individual image.
+
+### After the team merges into main
+
+The deployed full-project demonstration is a later task. Merging into `main` alone does not configure Vercel, Render or Supabase. When the integrated app is deployed, configure its frontend and API environment values, database connection/migrations, storage and permitted origins for those services. Then use the deployed API base URL, log in to that environment, read its record IDs and capture a separate set of deployment screenshots. The screenshots in this section document only the local Tester demonstration.
 
 ### Backend code paths
 
