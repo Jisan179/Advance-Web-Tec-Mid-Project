@@ -17,6 +17,7 @@ import {
   ChangeStatusDto,
   CommentDto,
   CreateTicketDto,
+  LinkGitDto,
   ListTicketsDto,
 } from "./dto/ticket.dto";
 import { PageDto } from "@/modules/projects/dto/project.dto";
@@ -101,5 +102,14 @@ export class TicketsController {
     @Body() dto: CommentDto,
   ) {
     return this.tickets.addComment(ticketId, user, dto);
+  }
+
+  @Post("tickets/:ticketId/link")
+  link(
+    @Param("ticketId", ParseUUIDPipe) ticketId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: LinkGitDto,
+  ) {
+    return this.tickets.linkGit(ticketId, user, dto);
   }
 }
