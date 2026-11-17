@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -90,4 +91,19 @@ export class ListTicketsDto {
   @Min(1)
   @Max(100)
   limit?: number;
+}
+
+export class LinkGitDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  @Matches(/^[A-Za-z0-9._\-/]+$/, { message: "branch contains invalid characters" })
+  branch?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(10_000_000)
+  prNumber?: number;
 }
