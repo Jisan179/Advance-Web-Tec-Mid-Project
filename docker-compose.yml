@@ -1,0 +1,15 @@
+
+name: inspectflow-reviewer
+services:
+  postgres:
+    image: postgres:17
+    ports:
+      - "127.0.0.1:5434:5432"
+    environment:
+      POSTGRES_USER: inspectflow_actor
+      POSTGRES_PASSWORD: inspectflow_actor_demo
+      POSTGRES_DB: inspectflow_actor
+    volumes:
+      - reviewer_db:/var/lib/postgresql/data
+volumes:
+  reviewer_db:

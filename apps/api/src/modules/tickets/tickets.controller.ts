@@ -1,0 +1,105 @@
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+} from "@nestjs/common";
+import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
+import { Membership } from "@prisma/client";
+import { CurrentMembership, CurrentUser } from "@/common/decorators";
+import { AuthUser } from "@/common/interfaces/auth-user.interface";
+import {
+  ChangeStatusDto,
+  CommentDto,
+  CreateTicketDto,
+  ListTicketsDto,
+} from "./dto/ticket.dto";
+import { PageDto } from "@/modules/projects/dto/project.dto";
+import { TicketsService } from "./tickets.service";
+
+@ApiTags("Tickets")
+@ApiBearerAuth()
+@Controller()
+export class TicketsController {
+  constructor(private readonly tickets: TicketsService) {}
+
+  // Project-scoped routes: membership is enforced by ProjectRolesGuard.
+
+  @Get("projects/:projectId/tickets")
+  list(
+    @Param("projectId", ParseUUIDPipe) projectId: string,
+    @CurrentUser() user: AuthUser,
+    @CurrentMembership() membership: Membership,
+    @Query() query: ListTicketsDto,
+  ) {
+    return this.tickets.list(projectId, user, membership.role, query);
+  }
+
+  @Post("projects/:projectId/tickets")
+  create(
+    @Param("projectId", ParseUUIDPipe) projectId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: CreateTicketDto,
+  ) {
+    return this.tickets.createManual(projectId, user, dto);
+  }
+
+  // Ticket-scoped routes: the service resolves the project and checks the role.
+
+  @Get("tickets/:ticketId")
+  detail(
+    @Param("ticketId", ParseUUIDPipe) ticketId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.tickets.getDetail(ticketId, user);
+  }
+
+  @Post("tickets/:ticketId/status")
+  status(
+    @Param("ticketId", ParseUUIDPipe) ticketId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: ChangeStatusDto,
+  ) {
+    return this.tickets.changeStatus(ticketId, user, dto);
+  }
+
+  @Get("tickets/:ticketId/comments")
+  comments(
+    @Param("ticketId", ParseUUIDPipe) ticketId: string,
+    @CurrentUser() user: AuthUser,
+    @Query() page: PageDto,
+  ) {
+    return this.tickets.listComments(ticketId, user, page);
+  }
+
+  @Patch("comments/:commentId")
+  editComment(
+    @Param("commentId", ParseUUIDPipe) commentId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: CommentDto,
+  ) {
+    return this.tickets.updateComment(commentId, user, dto);
+  }
+
+  @Delete("comments/:commentId")
+  deleteComment(
+    @Param("commentId", ParseUUIDPipe) commentId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.tickets.removeComment(commentId, user);
+  }
+
+  @Post("tickets/:ticketId/comments")
+  comment(
+    @Param("ticketId", ParseUUIDPipe) ticketId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: CommentDto,
+  ) {
+    return this.tickets.addComment(ticketId, user, dto);
+  }
+}
