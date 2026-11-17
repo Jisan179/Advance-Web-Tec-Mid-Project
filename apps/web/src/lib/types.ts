@@ -1,9 +1,11 @@
-export type Role = "TESTER_CLIENT";
+export type Role = "LEAD" | "DEVELOPER" | "TESTER_CLIENT";
 export type Severity = "LOW" | "MEDIUM" | "HIGH" | "BLOCKER";
 export type TicketStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "VERIFIED";
 export type BuildStatus = "DRAFT" | "IN_REVIEW" | "APPROVED" | "REJECTED";
 
 export const ROLE_LABEL: Record<Role, string> = {
+  LEAD: "Project Lead",
+  DEVELOPER: "Developer",
   TESTER_CLIENT: "Tester / Client",
 };
 export const STATUS_LABEL: Record<TicketStatus, string> = {
@@ -36,6 +38,8 @@ export interface Project {
   name: string;
   description: string | null;
   stagingUrl: string | null;
+  githubRepo: string | null;
+  hasWebhookSecret: boolean;
   myRole: Role;
   createdAt: string;
 }
