@@ -14,6 +14,7 @@ import { ActivityModule } from "@/modules/activity/activity.module";
 import { AuthModule } from "@/modules/auth/auth.module";
 import { BuildsModule } from "@/modules/builds/builds.module";
 import { FilesModule } from "@/modules/files/files.module";
+import { GithubModule } from "@/modules/github/github.module";
 import { ProjectsModule } from "@/modules/projects/projects.module";
 import { ReportsModule } from "@/modules/reports/reports.module";
 import { TicketsModule } from "@/modules/tickets/tickets.module";
@@ -30,6 +31,7 @@ import { UsersModule } from "@/modules/users/users.module";
     AccessModule,
     ActivityModule,
     FilesModule,
+    GithubModule,
     AuthModule,
     UsersModule,
     ProjectsModule,
