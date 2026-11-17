@@ -52,11 +52,11 @@ To reproduce the setup, create a separate local database named `inspectflow_acto
 
 ### Running the requests
 
-Open Postman Desktop and use `http://localhost:5002` as the base URL. The same API is listed in Swagger at `http://localhost:5002/api/docs`.
+Open Postman Desktop on the same PC as the running local API. Use `http://localhost:5002` as the base URL for these checks. The local Swagger page is `http://localhost:5002/api/docs`.
 
-1. Send `POST /auth/login` with **Body → raw → JSON**. Use the demo email and password from the Run section as the `email` and `password` values. A successful login returns `200 OK` and an `accessToken`.
+1. Send `POST http://localhost:5002/auth/login` with **Body → raw → JSON**. Use the demo email and password from the Run section as the `email` and `password` values. A successful login returns `200 OK` and an `accessToken`.
 2. In protected requests, choose **Authorization → Bearer Token** and paste the access token. To reproduce the unauthorized check below, create a separate request with **No Auth**.
-3. Send `GET /projects` and copy the ID of **Acme Shop Reviewer Demo**. Use that ID in `GET /projects/{projectId}/tickets` and `GET /projects/{projectId}/builds`. Copy the IDs of IF-1, IF-2, Checkout build, and Catalogue build from those responses. Replace every `{...Id}` below with the ID from your own database.
+3. Send `GET http://localhost:5002/projects` and copy the ID of **Acme Shop Reviewer Demo**. Use that ID in `GET http://localhost:5002/projects/{projectId}/tickets` and `GET http://localhost:5002/projects/{projectId}/builds`. Copy the IDs of IF-1, IF-2, Checkout build, and Catalogue build from those responses. Replace every `{...Id}` in the request table with the ID from your own database.
 4. Run the checks in the order shown. For status updates and build decisions, use **Body → raw → JSON**. The writes change demo records, so use a separate seeded database for a fresh rehearsal.
 
 | Screenshot | Postman request | Result observed |
@@ -71,6 +71,23 @@ Open Postman Desktop and use `http://localhost:5002` as the base URL. The same A
 | 8 | Repeat the Checkout approval request from step 4 | `201 Created`. The response records `approval.decision: APPROVED` and `approval.commitSha`. |
 | 9 | `POST /tickets/{if2Id}/status` with `{"status":"OPEN","note":"Issue still visible in the QA demo"}` | `201 Created`. The separate verified report reopens as `OPEN`. |
 | 10 | `POST /builds/{catalogueBuildId}/decision` with `{"decision":"CHANGES_REQUESTED","note":"Please fix the remaining catalogue display issue."}` | `201 Created`. The decision and note are recorded against Catalogue build. |
+
+### Exact local URLs from the screenshots
+
+These are the full URLs used in the captured Postman run. The UUIDs came from the temporary demo database. After seeding a new local database, keep the same host and route structure and substitute the IDs you get from the API in step 3 above.
+
+| Screenshot | Method | Full local URL |
+| --- | --- | --- |
+| 1 · API health | GET | `http://localhost:5002/health` |
+| 2 · Projects without a token | GET | `http://localhost:5002/projects` |
+| 3 · My Reports | GET | `http://localhost:5002/projects/8d25c4a1-7eca-466c-a288-bd764501d910/tickets` |
+| 4 · Checkout approval blocked | POST | `http://localhost:5002/builds/e15a3e6c-c24c-4d1a-96c5-b72ad32519a2/decision` |
+| 5 · Verify Fix | POST | `http://localhost:5002/tickets/1b2344a8-2d8e-4d61-bb2c-865a91cdd3a1/status` |
+| 6 · Read the verified ticket | GET | `http://localhost:5002/tickets/1b2344a8-2d8e-4d61-bb2c-865a91cdd3a1` |
+| 7 · Checkout build review | GET | `http://localhost:5002/builds/e15a3e6c-c24c-4d1a-96c5-b72ad32519a2/review` |
+| 8 · Checkout approval accepted | POST | `http://localhost:5002/builds/e15a3e6c-c24c-4d1a-96c5-b72ad32519a2/decision` |
+| 9 · Reopen a separate report | POST | `http://localhost:5002/tickets/a3c0d8b6-de9a-4276-a5a2-8c3a78f8355a/status` |
+| 10 · Request changes on Catalogue | POST | `http://localhost:5002/builds/b06330aa-902a-491c-9897-4760a15c95da/decision` |
 
 ### Postman screenshots
 
