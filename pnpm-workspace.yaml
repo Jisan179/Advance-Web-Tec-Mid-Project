@@ -1,0 +1,15 @@
+packages:
+  - "apps/*"
+nodeLinker: hoisted
+packageImportMethod: copy
+hoistWorkspacePackages: false
+allowBuilds:
+  "@parcel/watcher": true
+  "@prisma/client": true
+  "@prisma/engines": true
+  "@scarf/scarf": false
+  bcrypt: true
+  esbuild: true
+  prisma: true
+  sharp: true
+  unrs-resolver: true

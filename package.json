@@ -1,0 +1,22 @@
+{
+  "name": "inspectflow",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Inspect Flow 1: Tester and Client Reviewer demo",
+  "scripts": {
+    "dev:api": "pnpm --filter @inspectflow/api start:dev",
+    "dev:web": "pnpm --filter @inspectflow/web dev",
+    "dev:staging": "pnpm --filter @inspectflow/staging dev",
+    "build:widget": "pnpm --filter @inspectflow/widget build",
+    "build": "pnpm --workspace-concurrency=1 -r build",
+    "test": "pnpm --filter @inspectflow/api test",
+    "lint": "pnpm -r lint",
+    "format": "prettier --write \"apps/*/src/**/*.{ts,tsx}\"",
+    "setup:db": "pnpm --filter @inspectflow/api prisma:generate && pnpm --filter @inspectflow/api migration:run && pnpm --filter @inspectflow/api seed",
+    "dev": "pnpm --parallel --filter @inspectflow/api --filter @inspectflow/web --filter @inspectflow/staging run dev:actor"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2"
+  },
+  "packageManager": "pnpm@12.16.1"
+}
