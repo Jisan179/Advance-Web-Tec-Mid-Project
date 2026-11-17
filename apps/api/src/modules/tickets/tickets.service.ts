@@ -333,21 +333,30 @@ export class TicketsService {
 
   async linkGit(ticketId: string, user: AuthUser, dto: LinkGitDto) {
     const { ticket } = await this.requireEngineer(ticketId, user.id);
-    if (dto.branch === undefined && dto.prNumber === undefined) {
+
+    const branch = dto.branch ?? undefined;
+    const prNumber = dto.prNumber ?? undefined;
+    if (branch === undefined && prNumber === undefined) {
       throw new BadRequestException("Provide a branch or a pull request number");
     }
-    const updated = await this.prisma.ticket.update({
-      where: { id: ticketId },
-      data: { branch: dto.branch, prNumber: dto.prNumber },
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.ticket.update({
+        where: { id: ticketId },
+        data: { branch, prNumber },
+      });
+      await this.activity.log(
+        {
+          projectId: ticket.projectId,
+          ticketId,
+          actorId: user.id,
+          action: "ticket.git_linked",
+          metadata: { branch: updated.branch, prNumber: updated.prNumber },
+        },
+        tx,
+      );
+      return updated;
     });
-    await this.activity.log({
-      projectId: ticket.projectId,
-      ticketId,
-      actorId: user.id,
-      action: "ticket.git_linked",
-      metadata: { branch: dto.branch ?? null, prNumber: dto.prNumber ?? null },
-    });
-    return updated;
   }
 
   async markDuplicate(ticketId: string, user: AuthUser, dto: DuplicateDto) {

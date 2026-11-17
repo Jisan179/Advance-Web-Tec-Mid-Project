@@ -7,7 +7,9 @@ import { configureApp } from "@/app.setup";
 import { env } from "@/config";
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    rawBody: true,
+  });
   configureApp(app);
 
   const swagger = new DocumentBuilder()
