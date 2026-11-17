@@ -104,6 +104,44 @@
       ]
     },
     {
+      "name": "02a Tester login before reporting",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"tester@inspectflow.demo\",\n  \"password\": \"Demo@12345\"\n}"
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code < 300) { const data = pm.response.json(); pm.collectionVariables.set('token', data.accessToken); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "03 Create practice ticket",
       "request": {
         "method": "POST",
@@ -147,6 +185,44 @@
             "type": "text/javascript",
             "exec": [
               "if (pm.response.code < 300) { const data = pm.response.json(); pm.collectionVariables.set('ticketId', data.id); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03a Developer login before work",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"dev@inspectflow.demo\",\n  \"password\": \"Demo@12345\"\n}"
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code < 300) { const data = pm.response.json(); pm.collectionVariables.set('token', data.accessToken); }"
             ]
           }
         }

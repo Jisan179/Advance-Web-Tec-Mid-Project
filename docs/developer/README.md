@@ -19,7 +19,7 @@ The seed resets the demo project: never run it on real or shared data. The sampl
 ## Demonstration
 
 1. Login, list projects and confirm the role is `DEVELOPER`.
-2. Create and read a practice ticket, move it to `IN_PROGRESS`, link a branch and example PR number, then resolve it.
+2. Login as the tester to create a practice ticket, then login as the developer to read it, move it to `IN_PROGRESS`, link a branch and example PR number, and resolve it. Testers can access their own reports.
 3. Register an example build and mark it ready for review.
 4. Show that a developer cannot verify a resolved ticket (403); login as the tester and verify it.
 
