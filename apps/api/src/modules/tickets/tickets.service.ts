@@ -24,6 +24,7 @@ import {
   ChangeStatusDto,
   CommentDto,
   CreateTicketDto,
+  LinkGitDto,
   ListTicketsDto,
 } from "./dto/ticket.dto";
 import { allowedTransitions, canTransition } from "./ticket-workflow";
@@ -330,4 +331,36 @@ export class TicketsService {
     return comment;
   }
 
+  async linkGit(ticketId: string, user: AuthUser, dto: LinkGitDto) {
+    const ticket = await this.prisma.ticket.findUnique({ where: { id: ticketId } });
+    if (!ticket) throw new NotFoundException("Ticket not found");
+    await this.access.requireMember(user.id, ticket.projectId, [
+      ProjectRole.LEAD,
+      ProjectRole.DEVELOPER,
+    ]);
+
+    const branch = dto.branch ?? undefined;
+    const prNumber = dto.prNumber ?? undefined;
+    if (branch === undefined && prNumber === undefined) {
+      throw new BadRequestException("Provide a branch or a pull request number");
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.ticket.update({
+        where: { id: ticketId },
+        data: { branch, prNumber },
+      });
+      await this.activity.log(
+        {
+          projectId: ticket.projectId,
+          ticketId,
+          actorId: user.id,
+          action: "ticket.git_linked",
+          metadata: { branch: updated.branch, prNumber: updated.prNumber },
+        },
+        tx,
+      );
+      return updated;
+    });
+  }
 }
