@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -24,12 +25,14 @@ import {
   ChangeStatusDto,
   CommentDto,
   CreateTicketDto,
+  DuplicateDto,
   LinkGitDto,
   ListTicketsDto,
+  UpdateTicketDto,
 } from "./dto/ticket.dto";
 import { allowedTransitions, canTransition } from "./ticket-workflow";
 
-const { TESTER_CLIENT } = ProjectRole;
+const { DEVELOPER, LEAD, TESTER_CLIENT } = ProjectRole;
 
 /** Data needed to create a ticket, from the dashboard or from the widget. */
 export interface NewTicketInput {
@@ -141,6 +144,9 @@ export class TicketsService {
     if (query.status) where.status = query.status;
     if (query.severity) where.severity = query.severity;
     if (query.buildId) where.buildId = query.buildId;
+    if (query.assigneeId === "unassigned") where.assigneeId = null;
+    else if (query.assigneeId === "me") where.assigneeId = user.id;
+    else if (query.assigneeId) where.assigneeId = query.assigneeId;
     if (query.q) {
       const q = query.q.trim();
       const number = /^#?(?:if-)?(\d+)$/i.exec(q);
@@ -208,6 +214,9 @@ export class TicketsService {
           orderBy: { createdAt: "asc" },
           include: { actor: { select: { id: true, name: true } } },
         },
+        // Technical evidence is for the engineering roles only.
+        events:
+          role === TESTER_CLIENT ? false : { orderBy: { timestamp: "asc" } },
       },
     });
 
@@ -223,12 +232,67 @@ export class TicketsService {
     return {
       ...full,
       artifacts,
+      events: (full as any).events ?? [],
       myRole: role,
       allowedTransitions: allowedTransitions(full.status, role),
     };
   }
 
   // ---------------- changes ----------------
+
+  async update(ticketId: string, user: AuthUser, dto: UpdateTicketDto) {
+    const { ticket } = await this.requireEngineer(ticketId, user.id);
+    const data: Prisma.TicketUncheckedUpdateInput = {};
+    const changes: Record<string, unknown> = {};
+
+    if (dto.title !== undefined) data.title = dto.title.trim();
+    if (dto.description !== undefined) data.description = dto.description.trim();
+    if (dto.severity && dto.severity !== ticket.severity) {
+      data.severity = dto.severity;
+      changes.severity = { from: ticket.severity, to: dto.severity };
+    }
+    if (dto.assigneeId !== undefined) {
+      if (dto.assigneeId) {
+        const assignee = await this.prisma.membership.findUnique({
+          where: {
+            userId_projectId: { userId: dto.assigneeId, projectId: ticket.projectId },
+          },
+        });
+        if (!assignee || assignee.role === TESTER_CLIENT) {
+          throw new BadRequestException(
+            "Assignee must be a Developer or Lead of this project",
+          );
+        }
+      }
+      data.assigneeId = dto.assigneeId;
+      changes.assigneeId = dto.assigneeId;
+    }
+    if (dto.buildId !== undefined) {
+      if (dto.buildId) {
+        const build = await this.prisma.build.findFirst({
+          where: { id: dto.buildId, projectId: ticket.projectId },
+        });
+        if (!build) throw new BadRequestException("buildId is not in this project");
+      }
+      data.buildId = dto.buildId;
+      changes.buildId = dto.buildId;
+    }
+
+    const updated = await this.prisma.ticket.update({
+      where: { id: ticketId },
+      data,
+    });
+    if (Object.keys(changes).length) {
+      await this.activity.log({
+        projectId: ticket.projectId,
+        ticketId,
+        actorId: user.id,
+        action: "ticket.updated",
+        metadata: changes as Prisma.InputJsonObject,
+      });
+    }
+    return updated;
+  }
 
   async changeStatus(ticketId: string, user: AuthUser, dto: ChangeStatusDto) {
     const { ticket, role } = await this.loadForUser(ticketId, user.id);
@@ -245,7 +309,7 @@ export class TicketsService {
         where: { id: ticketId },
         data: {
           status: dto.status,
-          resolvedAt: dto.status === TicketStatus.OPEN ? null : ticket.resolvedAt,
+          resolvedAt: dto.status === TicketStatus.RESOLVED ? new Date() : null,
         },
       });
       if (dto.note?.trim()) {
@@ -267,77 +331,8 @@ export class TicketsService {
     });
   }
 
-  async listComments(ticketId: string, user: AuthUser, page: PageQuery) {
-    await this.loadForUser(ticketId, user.id);
-    const { skip, take, page: p, limit } = toPaging(page);
-    const [items, total] = await Promise.all([
-      this.prisma.comment.findMany({
-        where: { ticketId },
-        orderBy: { createdAt: "asc" },
-        skip,
-        take,
-        include: { author: { select: { id: true, name: true } } },
-      }),
-      this.prisma.comment.count({ where: { ticketId } }),
-    ]);
-    return { items, total, page: p, limit };
-  }
-
-  private async loadComment(commentId: string, userId: string) {
-    const comment = await this.prisma.comment.findUnique({
-      where: { id: commentId },
-    });
-    if (!comment) throw new NotFoundException("Comment not found");
-    // Same visibility rules as the ticket itself.
-    await this.loadForUser(comment.ticketId, userId);
-    return comment;
-  }
-
-  /** Only the author can edit a comment. */
-  async updateComment(commentId: string, user: AuthUser, dto: CommentDto) {
-    const comment = await this.loadComment(commentId, user.id);
-    if (comment.authorId !== user.id) {
-      throw new ForbiddenException("You can only edit your own comments");
-    }
-    return this.prisma.comment.update({
-      where: { id: commentId },
-      data: { body: dto.body.trim() },
-      include: { author: { select: { id: true, name: true } } },
-    });
-  }
-
-  /** Only the author can delete a comment. */
-  async removeComment(commentId: string, user: AuthUser) {
-    const comment = await this.loadComment(commentId, user.id);
-    if (comment.authorId !== user.id) {
-      throw new ForbiddenException("You can only delete your own comments");
-    }
-    await this.prisma.comment.delete({ where: { id: commentId } });
-    return { message: "Comment deleted" };
-  }
-
-  async addComment(ticketId: string, user: AuthUser, dto: CommentDto) {
-    const { ticket } = await this.loadForUser(ticketId, user.id);
-    const comment = await this.prisma.comment.create({
-      data: { ticketId, authorId: user.id, body: dto.body.trim() },
-      include: { author: { select: { id: true, name: true } } },
-    });
-    await this.activity.log({
-      projectId: ticket.projectId,
-      ticketId,
-      actorId: user.id,
-      action: "ticket.commented",
-    });
-    return comment;
-  }
-
   async linkGit(ticketId: string, user: AuthUser, dto: LinkGitDto) {
-    const ticket = await this.prisma.ticket.findUnique({ where: { id: ticketId } });
-    if (!ticket) throw new NotFoundException("Ticket not found");
-    await this.access.requireMember(user.id, ticket.projectId, [
-      ProjectRole.LEAD,
-      ProjectRole.DEVELOPER,
-    ]);
+    const { ticket } = await this.requireEngineer(ticketId, user.id);
 
     const branch = dto.branch ?? undefined;
     const prNumber = dto.prNumber ?? undefined;
@@ -362,5 +357,128 @@ export class TicketsService {
       );
       return updated;
     });
+  }
+
+  async markDuplicate(ticketId: string, user: AuthUser, dto: DuplicateDto) {
+    const { ticket } = await this.requireEngineer(ticketId, user.id);
+    if (dto.duplicateOfId === ticketId) {
+      throw new BadRequestException("A ticket cannot duplicate itself");
+    }
+    const original = await this.prisma.ticket.findFirst({
+      where: { id: dto.duplicateOfId, projectId: ticket.projectId },
+    });
+    if (!original) throw new BadRequestException("Original ticket not found");
+    const updated = await this.prisma.ticket.update({
+      where: { id: ticketId },
+      data: { duplicateOfId: original.id },
+    });
+    await this.activity.log({
+      projectId: ticket.projectId,
+      ticketId,
+      actorId: user.id,
+      action: "ticket.marked_duplicate",
+      metadata: { of: original.number },
+    });
+    return updated;
+  }
+
+  /** Lead only. Removes the ticket, its evidence rows and its stored screenshots. */
+  async remove(ticketId: string, user: AuthUser) {
+    const ticket = await this.prisma.ticket.findUnique({ where: { id: ticketId } });
+    if (!ticket) throw new NotFoundException("Ticket not found");
+    await this.access.requireMember(user.id, ticket.projectId, [LEAD]);
+    const artifacts = await this.prisma.artifact.findMany({
+      where: { ticketId },
+      select: { storageKey: true },
+    });
+    await this.prisma.ticket.delete({ where: { id: ticketId } });
+    await Promise.all(artifacts.map((a) => this.storage.delete(a.storageKey)));
+    // The ticket's own activity rows are gone, so keep a project-level record.
+    await this.activity.log({
+      projectId: ticket.projectId,
+      actorId: user.id,
+      action: "ticket.deleted",
+      metadata: { number: ticket.number, title: ticket.title },
+    });
+    return { message: "Ticket deleted", deletedFiles: artifacts.length };
+  }
+
+  async listComments(ticketId: string, user: AuthUser, page: PageQuery) {
+    await this.loadForUser(ticketId, user.id);
+    const { skip, take, page: p, limit } = toPaging(page);
+    const [items, total] = await Promise.all([
+      this.prisma.comment.findMany({
+        where: { ticketId },
+        orderBy: { createdAt: "asc" },
+        skip,
+        take,
+        include: { author: { select: { id: true, name: true } } },
+      }),
+      this.prisma.comment.count({ where: { ticketId } }),
+    ]);
+    return { items, total, page: p, limit };
+  }
+
+  private async loadComment(commentId: string, userId: string) {
+    const comment = await this.prisma.comment.findUnique({
+      where: { id: commentId },
+      include: { ticket: { select: { projectId: true } } },
+    });
+    if (!comment) throw new NotFoundException("Comment not found");
+    // Same visibility rules as the ticket itself.
+    await this.loadForUser(comment.ticketId, userId);
+    return comment;
+  }
+
+  /** Only the author can edit a comment. */
+  async updateComment(commentId: string, user: AuthUser, dto: CommentDto) {
+    const comment = await this.loadComment(commentId, user.id);
+    if (comment.authorId !== user.id) {
+      throw new ForbiddenException("You can only edit your own comments");
+    }
+    return this.prisma.comment.update({
+      where: { id: commentId },
+      data: { body: dto.body.trim() },
+      include: { author: { select: { id: true, name: true } } },
+    });
+  }
+
+  /** The author or a Project Lead can delete a comment. */
+  async removeComment(commentId: string, user: AuthUser) {
+    const comment = await this.loadComment(commentId, user.id);
+    if (comment.authorId !== user.id) {
+      const membership = await this.access.requireMember(
+        user.id,
+        comment.ticket.projectId,
+      );
+      if (membership.role !== LEAD) {
+        throw new ForbiddenException("You can only delete your own comments");
+      }
+    }
+    await this.prisma.comment.delete({ where: { id: commentId } });
+    return { message: "Comment deleted" };
+  }
+
+  async addComment(ticketId: string, user: AuthUser, dto: CommentDto) {
+    const { ticket } = await this.loadForUser(ticketId, user.id);
+    const comment = await this.prisma.comment.create({
+      data: { ticketId, authorId: user.id, body: dto.body.trim() },
+      include: { author: { select: { id: true, name: true } } },
+    });
+    await this.activity.log({
+      projectId: ticket.projectId,
+      ticketId,
+      actorId: user.id,
+      action: "ticket.commented",
+    });
+    return comment;
+  }
+
+  /** Visible ticket + caller must be a Developer or Lead of its project. */
+  private async requireEngineer(ticketId: string, userId: string) {
+    const ticket = await this.prisma.ticket.findUnique({ where: { id: ticketId } });
+    if (!ticket) throw new NotFoundException("Ticket not found");
+    await this.access.requireMember(userId, ticket.projectId, [DEVELOPER, LEAD]);
+    return { ticket };
   }
 }
