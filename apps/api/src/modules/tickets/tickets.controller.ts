@@ -17,7 +17,10 @@ import {
   ChangeStatusDto,
   CommentDto,
   CreateTicketDto,
+  DuplicateDto,
+  LinkGitDto,
   ListTicketsDto,
+  UpdateTicketDto,
 } from "./dto/ticket.dto";
 import { PageDto } from "@/modules/projects/dto/project.dto";
 import { TicketsService } from "./tickets.service";
@@ -59,6 +62,15 @@ export class TicketsController {
     return this.tickets.getDetail(ticketId, user);
   }
 
+  @Patch("tickets/:ticketId")
+  update(
+    @Param("ticketId", ParseUUIDPipe) ticketId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: UpdateTicketDto,
+  ) {
+    return this.tickets.update(ticketId, user, dto);
+  }
+
   @Post("tickets/:ticketId/status")
   status(
     @Param("ticketId", ParseUUIDPipe) ticketId: string,
@@ -66,6 +78,32 @@ export class TicketsController {
     @Body() dto: ChangeStatusDto,
   ) {
     return this.tickets.changeStatus(ticketId, user, dto);
+  }
+
+  @Post("tickets/:ticketId/link")
+  link(
+    @Param("ticketId", ParseUUIDPipe) ticketId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: LinkGitDto,
+  ) {
+    return this.tickets.linkGit(ticketId, user, dto);
+  }
+
+  @Post("tickets/:ticketId/duplicate")
+  duplicate(
+    @Param("ticketId", ParseUUIDPipe) ticketId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: DuplicateDto,
+  ) {
+    return this.tickets.markDuplicate(ticketId, user, dto);
+  }
+
+  @Delete("tickets/:ticketId")
+  remove(
+    @Param("ticketId", ParseUUIDPipe) ticketId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.tickets.remove(ticketId, user);
   }
 
   @Get("tickets/:ticketId/comments")
