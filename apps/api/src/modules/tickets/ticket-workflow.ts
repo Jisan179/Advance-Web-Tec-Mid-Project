@@ -1,13 +1,35 @@
 import { Prisma, ProjectRole, TicketSeverity, TicketStatus } from "@prisma/client";
 
-const { TESTER_CLIENT } = ProjectRole;
+const { TESTER_CLIENT, DEVELOPER, LEAD } = ProjectRole;
 
-// A resolved fixture lets the reviewer demonstrate verification without a second actor.
-export const TRANSITIONS: Record<TicketStatus, Partial<Record<TicketStatus, ProjectRole[]>>> = {
-  OPEN: {},
-  IN_PROGRESS: {},
-  RESOLVED: { VERIFIED: [TESTER_CLIENT], OPEN: [TESTER_CLIENT] },
-  VERIFIED: { OPEN: [TESTER_CLIENT] },
+/**
+ * Ticket lifecycle: Open -> In Progress -> Resolved -> Verified, with reopening.
+ * Each allowed move lists the project roles that may perform it, so the
+ * permission check for every transition lives in this one table.
+ *
+ * - Developers and Leads do the work (start, resolve).
+ * - Testers and Leads confirm the fix (verify) or reject it (reopen).
+ * - The GitHub webhook resolves tickets itself (see GithubService).
+ */
+export const TRANSITIONS: Record<
+  TicketStatus,
+  Partial<Record<TicketStatus, ProjectRole[]>>
+> = {
+  OPEN: {
+    IN_PROGRESS: [DEVELOPER, LEAD],
+    RESOLVED: [DEVELOPER, LEAD],
+  },
+  IN_PROGRESS: {
+    OPEN: [DEVELOPER, LEAD],
+    RESOLVED: [DEVELOPER, LEAD],
+  },
+  RESOLVED: {
+    VERIFIED: [TESTER_CLIENT, LEAD],
+    OPEN: [TESTER_CLIENT, LEAD],
+  },
+  VERIFIED: {
+    OPEN: [TESTER_CLIENT, LEAD],
+  },
 };
 
 export function canTransition(

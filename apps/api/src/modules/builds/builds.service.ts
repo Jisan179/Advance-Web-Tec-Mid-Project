@@ -18,9 +18,9 @@ import { ProjectAccessService } from "@/modules/access/project-access.service";
 import { blockingWhere } from "@/modules/tickets/ticket-workflow";
 import { toPaging } from "@/common/utils/pagination";
 import { PageDto } from "@/modules/projects/dto/project.dto";
-import { DecisionDto } from "./dto/build.dto";
+import { CreateBuildDto, DecisionDto, UpdateBuildDto } from "./dto/build.dto";
 
-const { TESTER_CLIENT } = ProjectRole;
+const { DEVELOPER, LEAD, TESTER_CLIENT } = ProjectRole;
 
 @Injectable()
 export class BuildsService {
@@ -32,7 +32,7 @@ export class BuildsService {
 
   /**
    * Clients only see builds that were shared with them, meaning builds that
-   * left DRAFT.
+   * left DRAFT. Developers and Leads see every build.
    */
   async list(projectId: string, role: ProjectRole, page?: PageDto) {
     const where = {
@@ -62,6 +62,26 @@ export class BuildsService {
     return paged ? { items, total, page: p, limit } : items;
   }
 
+  async create(projectId: string, user: AuthUser, dto: CreateBuildDto) {
+    const build = await this.prisma.build.create({
+      data: {
+        projectId,
+        name: dto.name.trim(),
+        branch: dto.branch,
+        commitSha: dto.commitSha.toLowerCase(),
+        previewUrl: dto.previewUrl,
+      },
+    });
+    await this.activity.log({
+      projectId,
+      actorId: user.id,
+      action: "build.registered",
+      metadata: { buildId: build.id, branch: build.branch },
+    });
+    return build;
+  }
+
+  /** Loads a build the caller may see (clients cannot see drafts). */
   private async loadForUser(buildId: string, userId: string) {
     const build = await this.prisma.build.findUnique({ where: { id: buildId } });
     if (!build) throw new NotFoundException("Build not found");
@@ -79,6 +99,69 @@ export class BuildsService {
       where: { buildId, ...blockingWhere },
     });
     return { ...build, myRole: role, blockingTickets: blocking, approvals };
+  }
+
+  /**
+   * Deletes a build that has no sign-off history (draft or rejected). Approved
+   * and in-review builds are part of the audit trail and are kept. Tickets of
+   * the build are kept and simply lose their build link.
+   */
+  async remove(buildId: string, user: AuthUser) {
+    const build = await this.prisma.build.findUnique({ where: { id: buildId } });
+    if (!build) throw new NotFoundException("Build not found");
+    await this.access.requireMember(user.id, build.projectId, [LEAD]);
+    if (build.status === BuildStatus.APPROVED || build.status === BuildStatus.IN_REVIEW) {
+      throw new ConflictException(
+        `A build that is ${build.status} cannot be deleted (it is part of the sign-off record)`,
+      );
+    }
+    await this.prisma.build.delete({ where: { id: buildId } });
+    await this.activity.log({
+      projectId: build.projectId,
+      actorId: user.id,
+      action: "build.deleted",
+      metadata: { name: build.name, branch: build.branch },
+    });
+    return { message: "Build deleted" };
+  }
+
+  async update(buildId: string, user: AuthUser, dto: UpdateBuildDto) {
+    const build = await this.prisma.build.findUnique({ where: { id: buildId } });
+    if (!build) throw new NotFoundException("Build not found");
+    await this.access.requireMember(user.id, build.projectId, [DEVELOPER, LEAD]);
+    if (build.status !== BuildStatus.DRAFT) {
+      throw new ConflictException("Only draft builds can be edited");
+    }
+    return this.prisma.build.update({
+      where: { id: buildId },
+      data: {
+        name: dto.name?.trim(),
+        branch: dto.branch,
+        commitSha: dto.commitSha?.toLowerCase(),
+        previewUrl: dto.previewUrl,
+      },
+    });
+  }
+
+  /** Shares the build with clients: DRAFT -> IN_REVIEW. */
+  async markReady(buildId: string, user: AuthUser) {
+    const build = await this.prisma.build.findUnique({ where: { id: buildId } });
+    if (!build) throw new NotFoundException("Build not found");
+    await this.access.requireMember(user.id, build.projectId, [DEVELOPER, LEAD]);
+    if (build.status !== BuildStatus.DRAFT) {
+      throw new ConflictException(`Build is already ${build.status}`);
+    }
+    const updated = await this.prisma.build.update({
+      where: { id: buildId },
+      data: { status: BuildStatus.IN_REVIEW },
+    });
+    await this.activity.log({
+      projectId: build.projectId,
+      actorId: user.id,
+      action: "build.ready_for_review",
+      metadata: { buildId },
+    });
+    return updated;
   }
 
   /** Page data for the client review screen. */
@@ -195,4 +278,15 @@ export class BuildsService {
     });
   }
 
+  /** Approval history of a whole project (Lead / Developer view). */
+  projectApprovals(projectId: string) {
+    return this.prisma.buildApproval.findMany({
+      where: { build: { projectId } },
+      orderBy: { decidedAt: "desc" },
+      include: {
+        user: { select: { id: true, name: true } },
+        build: { select: { id: true, name: true, branch: true } },
+      },
+    });
+  }
 }

@@ -1,0 +1,3 @@
+# Submission documents require completion
+
+These are the supplied proposal and report copies, included as drafts for group review. Before submission, the group must fill in the proposal's blank team details and the report's group number, semester, faculty, date, each member's SL number, name, student ID, section, actual contribution, and accurate AI-use information. Verify every claim, the repository link and any live URLs against the final system. Replace the draft copies with the group's reviewed final documents and ensure they are present on the submitted repository branch. Print both for the defense as instructed.

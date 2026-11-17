@@ -21,7 +21,7 @@ export class ProjectAccessService {
   async requireMember(
     userId: string,
     projectId: string,
-    roles: ProjectRole[] = [ProjectRole.TESTER_CLIENT],
+    roles?: ProjectRole[],
   ): Promise<Membership> {
     const membership = await this.prisma.membership.findUnique({
       where: { userId_projectId: { userId, projectId } },

@@ -19,7 +19,7 @@ export class ProjectsService {
     const { skip, take, page: p, limit } = toPaging(page ?? {});
     const [memberships, total] = await Promise.all([
       this.prisma.membership.findMany({
-        where: { userId, role: ProjectRole.TESTER_CLIENT },
+        where: { userId },
         include: { project: true },
         orderBy: { project: { createdAt: "desc" } },
         ...(paged ? { skip, take } : {}),

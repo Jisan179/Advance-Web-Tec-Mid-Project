@@ -7,10 +7,12 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Max,
   MaxLength,
   Min,
   MinLength,
+  ValidateIf,
 } from "class-validator";
 
 export class CreateTicketDto {
@@ -33,6 +35,34 @@ export class CreateTicketDto {
   buildId?: string;
 }
 
+export class UpdateTicketDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(3)
+  @MaxLength(200)
+  title?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(5000)
+  description?: string;
+
+  @IsOptional()
+  @IsEnum(TicketSeverity)
+  severity?: TicketSeverity;
+
+  // null clears the assignee
+  @IsOptional()
+  @ValidateIf((_o, v) => v !== null)
+  @IsUUID()
+  assigneeId?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_o, v) => v !== null)
+  @IsUUID()
+  buildId?: string | null;
+}
+
 export class ChangeStatusDto {
   @IsEnum(TicketStatus)
   status!: TicketStatus;
@@ -41,6 +71,26 @@ export class ChangeStatusDto {
   @IsString()
   @MaxLength(2000)
   note?: string;
+}
+
+export class LinkGitDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  @Matches(/^[A-Za-z0-9._\-/]+$/, { message: "branch contains invalid characters" })
+  branch?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(10_000_000)
+  prNumber?: number;
+}
+
+export class DuplicateDto {
+  @IsUUID()
+  duplicateOfId!: string;
 }
 
 export class CommentDto {
@@ -60,6 +110,9 @@ export class ListTicketsDto {
   severity?: TicketSeverity;
 
   // a user id, "me" or "unassigned"
+  @IsOptional()
+  @IsString()
+  assigneeId?: string;
 
   @IsOptional()
   @IsUUID()
