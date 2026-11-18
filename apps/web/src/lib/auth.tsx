@@ -8,6 +8,7 @@ interface AuthState {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -45,6 +46,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshUser,
     login: async (email, password) =>
       startSession(await api("/auth/login", { method: "POST", body: { email, password }, auth: false })),
+    register: async (name, email, password) =>
+      startSession(await api("/auth/register", { method: "POST", body: { name, email, password }, auth: false })),
     logout: async () => {
       const refreshToken = session.refreshToken();
       if (refreshToken) {
