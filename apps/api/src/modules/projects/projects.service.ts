@@ -9,8 +9,8 @@ import { ConnectGithubDto, PageDto } from "./dto/project.dto";
 
 /** Removes secrets before a project is returned to a client. */
 export function toPublicProject(project: Project) {
-  const { id, name, description, stagingUrl, createdAt, githubRepo, webhookSecret } = project;
-  return { id, name, description, stagingUrl, createdAt, githubRepo, hasWebhookSecret: !!webhookSecret };
+  const { apiKeyHash: _hash, webhookSecret, ...rest } = project;
+  return { ...rest, hasWebhookSecret: !!webhookSecret };
 }
 
 @Injectable()
