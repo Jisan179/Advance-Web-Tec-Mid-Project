@@ -41,7 +41,7 @@ Keep the API terminal and PostgreSQL running. First send **GET http://localhost:
 
 ## Ten Postman checks
 
-These full-resolution PNGs were newly captured from Postman's saved responses from the earlier local test. They are not a new live test run. Each caption gives the exact request URL shown. On another database, substitute its IDs as described above. Click an image to view its original size.
+These full-window PNGs were captured in Postman Desktop during a fresh local test against a separate PostgreSQL demo database. Each caption gives the exact request URL shown. On another database, substitute its IDs as described above. Click an image to view its original size.
 
 ### 1. API and database health
 
@@ -63,7 +63,7 @@ Expected **401 Unauthorized**. This is an intentional rejection.
 
 Expected **200 OK**. The `items` array contains the reports visible to the Tester.
 
-> **GET** `http://localhost:5002/projects/8d25c4a1-7eca-466c-a288-bd764501d910/tickets`
+> **GET** `http://localhost:5002/projects/cf1789ab-0200-4dbd-aff0-59503a533c5c/tickets`
 
 ![List the Tester's reports](docs/postman/03-my-reports.png)
 
@@ -83,7 +83,7 @@ Body `{"status": "VERIFIED"}`
 
 Expected **201 Created**. IF-1 changes from `RESOLVED` to `VERIFIED`.
 
-> **POST** `http://localhost:5002/tickets/1b2344a8-2d8e-4d61-bb2c-865a91cdd3a1/status`
+> **POST** `http://localhost:5002/tickets/56c38037-7818-44f2-a80b-0703af23e868/status`
 
 ![Verify the resolved fix](docs/postman/05-verify-fix.png)
 
@@ -91,7 +91,7 @@ Expected **201 Created**. IF-1 changes from `RESOLVED` to `VERIFIED`.
 
 Expected **200 OK**. A separate read returns `status: "VERIFIED"`, confirming the update is persisted..
 
-> **GET** `http://localhost:5002/tickets/1b2344a8-2d8e-4d61-bb2c-865a91cdd3a1`
+> **GET** `http://localhost:5002/tickets/56c38037-7818-44f2-a80b-0703af23e868`
 
 ![Read the saved ticket again](docs/postman/06-ticket-reread.png)
 
@@ -119,7 +119,7 @@ Body `{"status": "OPEN", "note": "Issue still visible in the QA demo"}`
 
 Expected **201 Created**. IF-2 changes from `VERIFIED` to `OPEN`.
 
-> **POST** `http://localhost:5002/tickets/a3c0d8b6-de9a-4276-a5a2-8c3a78f8355a/status`
+> **POST** `http://localhost:5002/tickets/965415d5-c344-4b42-a8dc-60f3002328fd/status`
 
 ![Reopen the separate verified report](docs/postman/09-reopen-ticket.png)
 
@@ -127,7 +127,7 @@ Expected **201 Created**. IF-2 changes from `VERIFIED` to `OPEN`.
 
 Body `{"decision": "CHANGES_REQUESTED", "note": "Please fix the remaining catalogue display issue."}`
 
-Expected **201 Created**. This recovered history entry shows the request body and saved status; its response body was not retained.
+Expected **201 Created**. The response records the `CHANGES_REQUESTED` decision, the note and the build commit SHA.
 
 > **POST** `http://localhost:5002/builds/b06330aa-902a-491c-9897-4760a15c95da/decision`
 
