@@ -2,10 +2,14 @@ import { ConflictException, Injectable } from "@nestjs/common";
 import { Prisma, Project, ProjectRole } from "@prisma/client";
 import { toPaging } from "@/common/utils/pagination";
 import { PrismaService } from "@/providers/database/prisma.service";
-import { randomSecret } from "@/common/utils/crypto";
+import { generateWidgetKey, randomSecret } from "@/common/utils/crypto";
 import { env } from "@/config";
 import { ActivityService } from "@/modules/activity/activity.service";
-import { ConnectGithubDto, PageDto } from "./dto/project.dto";
+import {
+  ConnectGithubDto,
+  CreateProjectDto,
+  PageDto,
+} from "./dto/project.dto";
 
 /** Removes secrets before a project is returned to a client. */
 export function toPublicProject(project: Project) {
@@ -19,6 +23,30 @@ export class ProjectsService {
     private readonly prisma: PrismaService,
     private readonly activity: ActivityService,
   ) {}
+
+  /** The creator becomes Project Lead. The widget key is returned only once. */
+  async create(userId: string, dto: CreateProjectDto) {
+    const widget = generateWidgetKey();
+    const project = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.project.create({
+        data: {
+          name: dto.name.trim(),
+          description: dto.description,
+          stagingUrl: dto.stagingUrl,
+          allowedOrigins: dto.allowedOrigins ?? [],
+          apiKeyPrefix: widget.prefix,
+          apiKeyHash: widget.hash,
+          memberships: { create: { userId, role: ProjectRole.LEAD } },
+        },
+      });
+      await this.activity.log(
+        { projectId: created.id, actorId: userId, action: "project.created" },
+        tx,
+      );
+      return created;
+    });
+    return { ...toPublicProject(project), myRole: ProjectRole.LEAD, widgetKey: widget.key };
+  }
 
   async listForUser(userId: string, page?: PageDto) {
     const paged = page?.page !== undefined || page?.limit !== undefined;
