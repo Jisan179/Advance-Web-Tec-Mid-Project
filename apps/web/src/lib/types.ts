@@ -1,4 +1,4 @@
-export type Role = "LEAD" | "DEVELOPER" | "TESTER_CLIENT";
+export type Role = "TESTER_CLIENT" | "DEVELOPER" | "LEAD";
 export type Severity = "LOW" | "MEDIUM" | "HIGH" | "BLOCKER";
 export type TicketStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "VERIFIED";
 export type BuildStatus = "DRAFT" | "IN_REVIEW" | "APPROVED" | "REJECTED";
@@ -38,10 +38,13 @@ export interface Project {
   name: string;
   description: string | null;
   stagingUrl: string | null;
+  apiKeyPrefix: string;
+  allowedOrigins: string[];
   githubRepo: string | null;
   hasWebhookSecret: boolean;
   myRole: Role;
   createdAt: string;
+  widgetKey?: string;
 }
 
 export interface TicketListItem {
