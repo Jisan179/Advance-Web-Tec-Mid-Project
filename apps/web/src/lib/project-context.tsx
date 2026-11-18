@@ -17,3 +17,4 @@ export function useProject() {
   return ctx;
 }
 
+export const isEngineer = (role: Role) => role === "LEAD" || role === "DEVELOPER";
