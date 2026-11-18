@@ -12,6 +12,7 @@ import { generateWidgetKey, randomSecret } from "@/common/utils/crypto";
 import { env } from "@/config";
 import { ActivityService } from "@/modules/activity/activity.service";
 import {
+  AddMemberDto,
   ConnectGithubDto,
   CreateProjectDto,
   PageDto,
@@ -149,6 +150,33 @@ export class ProjectsService {
       include: { user: { select: { id: true, name: true, email: true } } },
     });
     if (!member) throw new NotFoundException("Member not found");
+    return member;
+  }
+
+  async addMember(projectId: string, actorId: string, dto: AddMemberDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
+    if (!user) {
+      throw new NotFoundException(
+        "No registered user has this email. Ask them to sign up first.",
+      );
+    }
+    const exists = await this.prisma.membership.findUnique({
+      where: { userId_projectId: { userId: user.id, projectId } },
+    });
+    if (exists) throw new ConflictException("User is already a member");
+
+    const member = await this.prisma.membership.create({
+      data: { projectId, userId: user.id, role: dto.role },
+      include: { user: { select: { id: true, name: true, email: true } } },
+    });
+    await this.activity.log({
+      projectId,
+      actorId,
+      action: "member.added",
+      metadata: { userId: user.id, role: dto.role },
+    });
     return member;
   }
 
