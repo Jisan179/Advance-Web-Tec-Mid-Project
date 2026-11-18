@@ -9,6 +9,7 @@ import {
   ConnectGithubDto,
   CreateProjectDto,
   PageDto,
+  UpdateProjectDto,
 } from "./dto/project.dto";
 
 /** Removes secrets before a project is returned to a client. */
@@ -72,6 +73,25 @@ export class ProjectsService {
       where: { id: projectId },
     });
     return { ...toPublicProject(project), myRole: role };
+  }
+
+  async update(projectId: string, actorId: string, dto: UpdateProjectDto) {
+    const project = await this.prisma.project.update({
+      where: { id: projectId },
+      data: {
+        name: dto.name?.trim(),
+        description: dto.description,
+        stagingUrl: dto.stagingUrl,
+        allowedOrigins: dto.allowedOrigins,
+      },
+    });
+    await this.activity.log({
+      projectId,
+      actorId,
+      action: "project.updated",
+      metadata: { fields: Object.keys(dto) },
+    });
+    return toPublicProject(project);
   }
 
   async connectGithub(projectId: string, actorId: string, dto: ConnectGithubDto) {
