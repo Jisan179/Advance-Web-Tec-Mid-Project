@@ -94,6 +94,20 @@ export class ProjectsService {
     return toPublicProject(project);
   }
 
+  async rotateKey(projectId: string, actorId: string) {
+    const widget = generateWidgetKey();
+    await this.prisma.project.update({
+      where: { id: projectId },
+      data: { apiKeyPrefix: widget.prefix, apiKeyHash: widget.hash },
+    });
+    await this.activity.log({
+      projectId,
+      actorId,
+      action: "project.key_rotated",
+    });
+    return { widgetKey: widget.key };
+  }
+
   async connectGithub(projectId: string, actorId: string, dto: ConnectGithubDto) {
     const repo = dto.githubRepo.toLowerCase();
     try {
