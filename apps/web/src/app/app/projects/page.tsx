@@ -69,7 +69,7 @@ export default function ProjectsPage() {
         }),
       });
 
-      toast.show("Project created successfully", "ok");
+      toast("Project created successfully", "ok");
       mutate();
       if (created.widgetKey) {
         setNewWidgetKey(created.widgetKey);
@@ -78,7 +78,7 @@ export default function ProjectsPage() {
         resetForm();
       }
     } catch (err) {
-      toast.show(err instanceof Error ? err.message : "Failed to create project", "danger");
+      toast(err instanceof Error ? err.message : "Failed to create project", "error");
     } finally {
       setSubmitting(false);
     }
@@ -87,7 +87,7 @@ export default function ProjectsPage() {
   function copyKey(key: string) {
     navigator.clipboard.writeText(key);
     setCopied(true);
-    toast.show("Widget key copied to clipboard", "ok");
+    toast("Widget key copied to clipboard", "ok");
     setTimeout(() => setCopied(false), 2000);
   }
 
