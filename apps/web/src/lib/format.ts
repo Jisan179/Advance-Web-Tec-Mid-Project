@@ -1,3 +1,7 @@
+/**
+ * format.ts - Date/time formatters and activity-log description helpers.
+ * Used across overview dashboard and audit log views.
+ */
 const dateFmt = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" });
 const dayFmt = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" });
 
