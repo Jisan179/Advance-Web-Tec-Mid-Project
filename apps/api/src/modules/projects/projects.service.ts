@@ -2,6 +2,7 @@ import { ConflictException, Injectable } from "@nestjs/common";
 import { Prisma, Project, ProjectRole } from "@prisma/client";
 import { toPaging } from "@/common/utils/pagination";
 import { PrismaService } from "@/providers/database/prisma.service";
+import { StorageService } from "@/providers/storage/storage.service";
 import { generateWidgetKey, randomSecret } from "@/common/utils/crypto";
 import { env } from "@/config";
 import { ActivityService } from "@/modules/activity/activity.service";
@@ -22,6 +23,7 @@ export function toPublicProject(project: Project) {
 export class ProjectsService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
     private readonly activity: ActivityService,
   ) {}
 
@@ -92,6 +94,17 @@ export class ProjectsService {
       metadata: { fields: Object.keys(dto) },
     });
     return toPublicProject(project);
+  }
+
+  /** Deletes the project, its database rows (cascade) and its stored files. */
+  async remove(projectId: string, _actorId: string) {
+    const artifacts = await this.prisma.artifact.findMany({
+      where: { ticket: { projectId } },
+      select: { storageKey: true },
+    });
+    await this.prisma.project.delete({ where: { id: projectId } });
+    await Promise.all(artifacts.map((a) => this.storage.delete(a.storageKey)));
+    return { message: "Project deleted", deletedFiles: artifacts.length };
   }
 
   async rotateKey(projectId: string, actorId: string) {
