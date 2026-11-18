@@ -1,7 +1,4 @@
-const dateFmt = new Intl.DateTimeFormat("en-GB", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
+const dateFmt = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" });
 const dayFmt = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" });
 
 export const formatDateTime = (iso: string) => dateFmt.format(new Date(iso));
@@ -21,43 +18,24 @@ export function timeAgo(iso: string) {
 export function describeActivity(a: { action: string; metadata?: any }) {
   const m = a.metadata ?? {};
   switch (a.action) {
-    case "ticket.created":
-      return "reported the issue";
-    case "ticket.status_changed":
-      return `changed status ${m.from} to ${m.to}`;
-    case "ticket.auto_resolved":
-      return `merged PR #${m.prNumber}: ticket resolved automatically${m.mergedBy ? ` (merged by ${m.mergedBy})` : ""}`;
-    case "ticket.updated":
-      return `updated ${Object.keys(m).join(", ") || "the ticket"}`;
-    case "ticket.git_linked":
-      return `linked ${[m.branch && `branch ${m.branch}`, m.prNumber && `PR #${m.prNumber}`].filter(Boolean).join(" and ")}`;
-    case "ticket.marked_duplicate":
-      return `marked as duplicate of IF-${m.of}`;
-    case "ticket.commented":
-      return "commented";
-    case "build.registered":
-      return `registered build on ${m.branch}`;
-    case "build.ready_for_review":
-      return "marked a build ready for review";
-    case "build.approved":
-      return `approved build (commit ${String(m.commitSha).slice(0, 7)})`;
-    case "build.changes_requested":
-      return `requested changes on build (commit ${String(m.commitSha).slice(0, 7)})`;
-    case "project.created":
-      return "created the project";
-    case "project.updated":
-      return "updated project settings";
-    case "project.key_rotated":
-      return "rotated the widget key";
-    case "member.added":
-      return `added a member as ${m.role}`;
-    case "member.removed":
-      return `removed a ${m.role}`;
-    case "member.role_changed":
-      return `changed a role ${m.from} to ${m.to}`;
-    case "github.connected":
-      return `connected repository ${m.repo}`;
-    default:
-      return a.action;
+    case "ticket.created": return "reported the issue";
+    case "ticket.status_changed": return `changed status ${m.from} to ${m.to}`;
+    case "ticket.auto_resolved": return `merged PR #${m.prNumber}: ticket resolved automatically${m.mergedBy ? ` (merged by ${m.mergedBy})` : ""}`;
+    case "ticket.updated": return `updated ${Object.keys(m).join(", ") || "the ticket"}`;
+    case "ticket.git_linked": return `linked ${[m.branch && `branch ${m.branch}`, m.prNumber && `PR #${m.prNumber}`].filter(Boolean).join(" and ")}`;
+    case "ticket.marked_duplicate": return `marked as duplicate of IF-${m.of}`;
+    case "ticket.commented": return "commented";
+    case "build.registered": return `registered build on ${m.branch}`;
+    case "build.ready_for_review": return "marked a build ready for review";
+    case "build.approved": return `approved build (commit ${String(m.commitSha).slice(0, 7)})`;
+    case "build.changes_requested": return `requested changes on build (commit ${String(m.commitSha).slice(0, 7)})`;
+    case "project.created": return "created the project";
+    case "project.updated": return "updated project settings";
+    case "project.key_rotated": return "rotated the widget key";
+    case "member.added": return `added a member as ${m.role}`;
+    case "member.removed": return `removed a ${m.role}`;
+    case "member.role_changed": return `changed a role ${m.from} to ${m.to}`;
+    case "github.connected": return `connected repository ${m.repo}`;
+    default: return a.action;
   }
 }
