@@ -16,6 +16,7 @@ import {
   ConnectGithubDto,
   CreateProjectDto,
   PageDto,
+  UpdateMemberDto,
   UpdateProjectDto,
 } from "./dto/project.dto";
 
@@ -178,6 +179,45 @@ export class ProjectsService {
       metadata: { userId: user.id, role: dto.role },
     });
     return member;
+  }
+
+  async updateMember(
+    projectId: string,
+    membershipId: string,
+    actorId: string,
+    dto: UpdateMemberDto,
+  ) {
+    const member = await this.findMember(projectId, membershipId);
+    if (member.role === ProjectRole.LEAD && dto.role !== ProjectRole.LEAD) {
+      await this.assertAnotherLead(projectId, membershipId);
+    }
+    const updated = await this.prisma.membership.update({
+      where: { id: membershipId },
+      data: { role: dto.role },
+      include: { user: { select: { id: true, name: true, email: true } } },
+    });
+    await this.activity.log({
+      projectId,
+      actorId,
+      action: "member.role_changed",
+      metadata: { userId: member.userId, from: member.role, to: dto.role },
+    });
+    return updated;
+  }
+
+  async removeMember(projectId: string, membershipId: string, actorId: string) {
+    const member = await this.findMember(projectId, membershipId);
+    if (member.role === ProjectRole.LEAD) {
+      await this.assertAnotherLead(projectId, membershipId);
+    }
+    await this.prisma.membership.delete({ where: { id: membershipId } });
+    await this.activity.log({
+      projectId,
+      actorId,
+      action: "member.removed",
+      metadata: { userId: member.userId, role: member.role },
+    });
+    return { message: "Member removed" };
   }
 
   private async findMember(projectId: string, membershipId: string) {
