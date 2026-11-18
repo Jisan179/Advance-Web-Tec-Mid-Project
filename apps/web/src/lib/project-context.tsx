@@ -1,5 +1,11 @@
 "use client";
 
+/**
+ * project-context.tsx
+ * Provides ProjectContext shared across all [projectId] child pages.
+ * - useProject(): access current project data and reload
+ * - isEngineer(role): returns true for LEAD or DEVELOPER role
+ */
 import { createContext, useContext } from "react";
 import type { Project, Role } from "./types";
 
