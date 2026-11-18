@@ -4,11 +4,11 @@
  * - On a 401 it tries the refresh token once, then retries the request.
  * - If refresh fails the session is cleared and the user returns to /login.
  */
-export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5002").replace(/\/+$/, "");
-export const WEB_URL = (process.env.NEXT_PUBLIC_WEB_URL ?? "http://localhost:3001").replace(/\/+$/, "");
+export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5001").replace(/\/+$/, "");
+export const WEB_URL = (process.env.NEXT_PUBLIC_WEB_URL ?? "http://localhost:3000").replace(/\/+$/, "");
 
-const ACCESS = "if1_access";
-const REFRESH = "if1_refresh";
+const ACCESS = "if_access";
+const REFRESH = "if_refresh";
 
 export class ApiError extends Error {
   constructor(
