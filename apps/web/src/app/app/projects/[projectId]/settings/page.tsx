@@ -1,17 +1,120 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import useSWR from "swr";
-import { KeyRound, RefreshCw } from "lucide-react";
-import { Badge, Button, Card, ErrorState, Field, Loading, PageHeader, TextArea, useToast } from "@/components/ui";
-import { PreviewNotice } from "@/components/role-preview";
+import { Check, Copy, KeyRound, RefreshCw, Trash2 } from "lucide-react";
+import { Badge, Button, Card, ErrorState, Field, Loading, Modal, PageHeader, TextArea, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
 import { useProject } from "@/lib/project-context";
 import type { Paged } from "@/lib/types";
 
 export default function SettingsPage() {
-  const { project } = useProject();
+  const { project, role, reload } = useProject();
+  const router = useRouter();
+  const toast = useToast();
+
+  const [name, setName] = useState(project.name);
+  const [description, setDescription] = useState(project.description ?? "");
+  const [stagingUrl, setStagingUrl] = useState(project.stagingUrl ?? "");
+  const [origins, setOrigins] = useState((project.allowedOrigins ?? []).join("\n"));
+  const [savingDetails, setSavingDetails] = useState(false);
+  const [savingOrigins, setSavingOrigins] = useState(false);
+
+  const [rotatingKey, setRotatingKey] = useState(false);
+  const [rotatedKey, setRotatedKey] = useState<string | null>(null);
+  const [copiedKey, setCopiedKey] = useState(false);
+
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const isLead = role === "LEAD";
+
+  async function handleSaveDetails(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return;
+
+    setSavingDetails(true);
+    try {
+      await api(`/projects/${project.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          description: description.trim() || undefined,
+          stagingUrl: stagingUrl.trim() || undefined,
+        }),
+      });
+      toast("Project details saved successfully", "ok");
+      reload();
+    } catch (err) {
+      toast((err as Error).message, "error");
+    } finally {
+      setSavingDetails(false);
+    }
+  }
+
+  async function handleSaveOrigins(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingOrigins(true);
+    try {
+      const allowedOriginsList = origins
+        .split("\n")
+        .map((o) => o.trim())
+        .filter(Boolean);
+
+      await api(`/projects/${project.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          allowedOrigins: allowedOriginsList,
+        }),
+      });
+      toast("Allowed origins updated", "ok");
+      reload();
+    } catch (err) {
+      toast((err as Error).message, "error");
+    } finally {
+      setSavingOrigins(false);
+    }
+  }
+
+  async function handleRotateKey() {
+    setRotatingKey(true);
+    try {
+      const res = await api<{ widgetKey: string }>(`/projects/${project.id}/rotate-key`, {
+        method: "POST",
+      });
+      setRotatedKey(res.widgetKey);
+      toast("Widget key rotated successfully", "ok");
+      reload();
+    } catch (err) {
+      toast((err as Error).message, "error");
+    } finally {
+      setRotatingKey(false);
+    }
+  }
+
+  function copyKey(key: string) {
+    navigator.clipboard.writeText(key);
+    setCopiedKey(true);
+    toast("Widget key copied to clipboard", "ok");
+    setTimeout(() => setCopiedKey(false), 2000);
+  }
+
+  async function handleDeleteProject() {
+    setDeleting(true);
+    try {
+      await api(`/projects/${project.id}`, { method: "DELETE" });
+      toast("Project deleted", "ok");
+      router.push("/app/projects");
+    } catch (err) {
+      toast((err as Error).message, "error");
+      setDeleting(false);
+    }
+  }
+
   return (
     <>
       <PageHeader
@@ -19,56 +122,154 @@ export default function SettingsPage() {
         subtitle="Widget key, allowed websites, GitHub connection and project details."
       />
       <div className="space-y-6">
-        <PreviewNotice>
-          Project details and widget settings are read-only in this demo.
-        </PreviewNotice>
         <Card>
           <h2 className="mb-4 font-semibold">Details</h2>
-          <fieldset disabled className="space-y-4">
-            <Field label="Project name" value={project.name} />
-            <TextArea label="Description" value={project.description ?? ""} />
+          <form onSubmit={handleSaveDetails} className="space-y-4">
+            <Field
+              label="Project name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              disabled={!isLead}
+              required
+            />
+            <TextArea
+              label="Description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              disabled={!isLead}
+            />
             <Field
               label="Staging site URL"
               type="url"
-              value={project.stagingUrl ?? ""}
+              value={stagingUrl}
+              onChange={(e) => setStagingUrl(e.target.value)}
+              disabled={!isLead}
+              placeholder="https://staging.example.com"
             />
-            <Button type="button" variant="primary" disabled>
-              Save details
-            </Button>
-          </fieldset>
+            {isLead && (
+              <Button type="submit" variant="primary" loading={savingDetails}>
+                Save details
+              </Button>
+            )}
+          </form>
         </Card>
+
         <Card>
           <h2 className="mb-2 flex items-center gap-2 font-semibold">
             <KeyRound className="h-4 w-4" aria-hidden="true" /> Widget
           </h2>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm text-muted">Project key</p>
-            <Button type="button" size="sm" disabled>
-              <RefreshCw className="h-4 w-4" aria-hidden="true" /> Rotate key
-            </Button>
+            <div>
+              <p className="text-sm font-medium">Project key prefix</p>
+              <p className="font-mono text-xs text-muted">{project.apiKeyPrefix ?? "Stored securely"}</p>
+            </div>
+            {isLead && (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                loading={rotatingKey}
+                onClick={handleRotateKey}
+              >
+                <RefreshCw className="h-4 w-4" aria-hidden="true" /> Rotate key
+              </Button>
+            )}
           </div>
+
           <pre className="mt-3 overflow-x-auto rounded-lg bg-surface2 p-3 text-xs">
             {
               '<script src="…/inspectflow-widget.js" data-key="…" data-api="…" defer></script>'
             }
           </pre>
-          <fieldset disabled className="mt-5 space-y-3">
+
+          <form onSubmit={handleSaveOrigins} className="mt-5 space-y-3">
             <TextArea
               label="Allowed origins (one per line)"
               placeholder="https://staging.example.com"
+              value={origins}
+              onChange={(e) => setOrigins(e.target.value)}
+              disabled={!isLead}
             />
-            <Button type="button" disabled>
-              Save origins
-            </Button>
-          </fieldset>
+            {isLead && (
+              <Button type="submit" variant="secondary" loading={savingOrigins}>
+                Save origins
+              </Button>
+            )}
+          </form>
         </Card>
+
+        {/* Rotated Key Modal */}
+        <Modal
+          open={!!rotatedKey}
+          title="New Widget Key Generated"
+          onClose={() => setRotatedKey(null)}
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-muted">
+              The old widget key has been revoked. Copy your new widget key now; for security reasons, it cannot be displayed again.
+            </p>
+            {rotatedKey && (
+              <div className="rounded-lg border border-line bg-surface2 p-3">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted">New Widget Key</span>
+                <div className="mt-1 flex items-center justify-between gap-2 font-mono text-sm break-all">
+                  <span>{rotatedKey}</span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => copyKey(rotatedKey)}
+                  >
+                    {copiedKey ? <Check className="h-4 w-4 text-ok" /> : <Copy className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+            )}
+            <div className="flex justify-end pt-2">
+              <Button type="button" variant="primary" onClick={() => setRotatedKey(null)}>
+                Done
+              </Button>
+            </div>
+          </div>
+        </Modal>
+
         {project.myRole !== "TESTER_CLIENT" && <GithubCard key={project.id} />}
-        <Card className="border-danger/40">
-          <h2 className="mb-2 font-semibold text-danger">Danger zone</h2>
-          <Button type="button" variant="danger" disabled>
-            Delete project
-          </Button>
-        </Card>
+
+        {isLead && (
+          <Card className="border-danger/40">
+            <h2 className="mb-2 font-semibold text-danger">Danger zone</h2>
+            <p className="mb-3 text-sm text-muted">
+              Permanently delete this project and all associated tickets, builds, screenshots, and comments. This action cannot be undone.
+            </p>
+            <Button
+              type="button"
+              variant="danger"
+              onClick={() => setDeleteModalOpen(true)}
+            >
+              <Trash2 className="h-4 w-4" aria-hidden="true" /> Delete project
+            </Button>
+          </Card>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        <Modal
+          open={deleteModalOpen}
+          title="Delete Project?"
+          onClose={() => setDeleteModalOpen(false)}
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-muted">
+              Are you sure you want to permanently delete <strong>{project.name}</strong>? All data will be irreversibly removed.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="secondary" onClick={() => setDeleteModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="button" variant="danger" loading={deleting} onClick={handleDeleteProject}>
+                Yes, delete project
+              </Button>
+            </div>
+          </div>
+        </Modal>
       </div>
     </>
   );
@@ -101,7 +302,7 @@ function GithubCard() {
         body: { githubRepo: repo, webhookSecret: regenerate ? undefined : secret || undefined, regenerateSecret: regenerate || undefined },
       });
       setResult(res); setSecret("");
-      toast("GitHub repository saved");
+      toast("GitHub repository saved", "ok");
       reload();
     } catch (err) { setError((err as Error).message); }
     finally { setBusy(false); }

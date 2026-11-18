@@ -2,20 +2,49 @@
 
 import Link from "next/link";
 import useSWR from "swr";
-import { ExternalLink, History } from "lucide-react";
+import { CheckCircle2, Clock, ExternalLink, History, ShieldAlert } from "lucide-react";
 import {
+  Badge,
   BuildBadge,
   Card,
   Loading,
   SeverityBadge,
   StatusBadge,
 } from "@/components/ui";
-import { PreviewNotice } from "@/components/role-preview";
+import { formatDateTime } from "@/lib/format";
 import { useProject } from "@/lib/project-context";
 import type { Build, Paged, TicketListItem } from "@/lib/types";
 
-export default function TesterOverview() {
-  const { project } = useProject();
+interface ProjectOverviewData {
+  tickets: {
+    total: number;
+    open: number;
+    inProgress: number;
+    resolved: number;
+    verified: number;
+    bySeverity: Record<string, number>;
+  };
+  builds: Record<string, number>;
+  approvals: Array<{
+    id: string;
+    decision: "APPROVED" | "CHANGES_REQUESTED";
+    note: string | null;
+    commitSha: string;
+    decidedAt: string;
+    user: { name: string };
+    build: { name: string; branch: string };
+  }>;
+  activity: Array<{
+    id: string;
+    action: string;
+    createdAt: string;
+    actor: { name: string } | null;
+  }>;
+}
+
+export default function ProjectOverviewPage() {
+  const { project, role } = useProject();
+  const overview = useSWR<ProjectOverviewData>(`/projects/${project.id}/overview`);
   const tickets = useSWR<Paged<TicketListItem>>(
     `/projects/${project.id}/tickets?limit=5`,
   );
@@ -25,55 +54,119 @@ export default function TesterOverview() {
 
   return (
     <div className="space-y-6">
+      {/* Project Lead & Developer Overview Card */}
       <Card>
-        <details>
-          <summary className="cursor-pointer font-semibold">
-            Developer overview
-          </summary>
-          <div className="mt-4 space-y-4">
-            <PreviewNotice>
-              Design preview for the project-wide dashboard.
-            </PreviewNotice>
+        <div className="flex items-center justify-between border-b border-line pb-3">
+          <div>
+            <h2 className="font-semibold">Project overview</h2>
+            <p className="text-xs text-muted">Real-time status across tickets, builds, and audit logs.</p>
+          </div>
+          <span className="text-xs text-muted">Role: <strong>{role}</strong></span>
+        </div>
+
+        {overview.isLoading && (
+          <div className="py-6">
+            <Loading label="Loading overview metrics..." />
+          </div>
+        )}
+
+        {overview.data && (
+          <div className="mt-4 space-y-5">
             <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              {[
-                "Open",
-                "In progress",
-                "Resolved, awaiting verification",
-                "Verified",
-              ].map((label) => (
-                <div
-                  key={label}
-                  className="rounded-lg border border-line px-3 py-2"
-                >
-                  <dt className="text-sm text-muted">{label}</dt>
-                  <dd className="mt-1 text-2xl font-semibold">—</dd>
-                </div>
-              ))}
+              <div className="rounded-lg border border-line bg-surface2 px-3 py-2">
+                <dt className="text-xs font-medium text-muted uppercase">Open Tickets</dt>
+                <dd className="mt-1 text-2xl font-bold">{overview.data.tickets.open}</dd>
+              </div>
+              <div className="rounded-lg border border-line bg-surface2 px-3 py-2">
+                <dt className="text-xs font-medium text-muted uppercase">In Progress</dt>
+                <dd className="mt-1 text-2xl font-bold">{overview.data.tickets.inProgress}</dd>
+              </div>
+              <div className="rounded-lg border border-line bg-surface2 px-3 py-2">
+                <dt className="text-xs font-medium text-muted uppercase">Resolved</dt>
+                <dd className="mt-1 text-2xl font-bold text-ok">{overview.data.tickets.resolved}</dd>
+              </div>
+              <div className="rounded-lg border border-line bg-surface2 px-3 py-2">
+                <dt className="text-xs font-medium text-muted uppercase">Verified</dt>
+                <dd className="mt-1 text-2xl font-bold text-brand">{overview.data.tickets.verified}</dd>
+              </div>
             </dl>
+
+            {/* Severity Breakdown */}
+            <div>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">Tickets by Severity</h3>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(overview.data.tickets.bySeverity).map(([sev, count]) => (
+                  <span key={sev} className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1 text-xs">
+                    <span className="font-medium">{sev}:</span>
+                    <strong className="text-ink">{count}</strong>
+                  </span>
+                ))}
+              </div>
+            </div>
+
             <div className="grid gap-4 lg:grid-cols-2">
-              <section className="space-y-2">
-                <h2 className="font-semibold">Builds</h2>
+              {/* Builds by Status */}
+              <section className="space-y-2 rounded-lg border border-line p-3">
+                <h3 className="font-semibold text-sm">Build status summary</h3>
                 <div className="flex flex-wrap gap-2">
-                  {(
-                    ["DRAFT", "IN_REVIEW", "APPROVED", "REJECTED"] as const
-                  ).map((status) => (
-                    <BuildBadge key={status} value={status} />
+                  {Object.entries(overview.data.builds).map(([status, count]) => (
+                    <div key={status} className="flex items-center gap-1.5">
+                      <BuildBadge value={status as any} />
+                      <span className="text-xs font-semibold">({count})</span>
+                    </div>
                   ))}
+                  {Object.keys(overview.data.builds).length === 0 && (
+                    <p className="text-xs text-muted">No builds registered yet.</p>
+                  )}
                 </div>
               </section>
-              <section>
-                <h2 className="font-semibold">Approval history</h2>
-                <p className="text-sm text-muted">
-                  No project-wide results in this preview.
-                </p>
+
+              {/* Approval History */}
+              <section className="space-y-2 rounded-lg border border-line p-3">
+                <h3 className="font-semibold text-sm">Recent approvals</h3>
+                {overview.data.approvals.length === 0 ? (
+                  <p className="text-xs text-muted">No approval decisions recorded yet.</p>
+                ) : (
+                  <ul className="divide-y divide-line text-xs">
+                    {overview.data.approvals.slice(0, 3).map((a) => (
+                      <li key={a.id} className="py-1.5 flex items-center justify-between">
+                        <div>
+                          <span className="font-medium">{a.build.name}</span>
+                          <span className="text-muted"> by {a.user.name}</span>
+                        </div>
+                        <Badge tone={a.decision === "APPROVED" ? "ok" : "warn"}>{a.decision}</Badge>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </section>
             </div>
-            <h2 className="flex items-center gap-2 font-semibold">
-              <History className="h-4 w-4" aria-hidden="true" /> Recent activity
-            </h2>
+
+            {/* Recent Activity Log */}
+            <div>
+              <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
+                <History className="h-4 w-4 text-muted" aria-hidden="true" /> Recent activity log
+              </h3>
+              {overview.data.activity.length === 0 ? (
+                <p className="text-xs text-muted">No recent activity.</p>
+              ) : (
+                <ul className="divide-y divide-line text-xs">
+                  {overview.data.activity.slice(0, 5).map((act) => (
+                    <li key={act.id} className="flex items-center justify-between py-1.5">
+                      <span>
+                        <code className="rounded bg-surface2 px-1 py-0.5 font-mono text-[11px]">{act.action}</code>
+                        {act.actor && <span className="text-muted"> by {act.actor.name}</span>}
+                      </span>
+                      <span className="text-muted">{formatDateTime(act.createdAt)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
-        </details>
+        )}
       </Card>
+
       <Card>
         <h2 className="font-semibold">How to report a problem</h2>
         <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-muted">
