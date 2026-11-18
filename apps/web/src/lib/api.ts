@@ -126,4 +126,5 @@ export async function api<T = any>(
   return data as T;
 }
 
+/** SWR-compatible fetcher: useSWR(path, fetcher) */
 export const fetcher = <T = any>(path: string) => api<T>(path);
