@@ -1,4 +1,9 @@
-import { ConflictException, Injectable } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import { Prisma, Project, ProjectRole } from "@prisma/client";
 import { toPaging } from "@/common/utils/pagination";
 import { PrismaService } from "@/providers/database/prisma.service";
@@ -119,6 +124,50 @@ export class ProjectsService {
       action: "project.key_rotated",
     });
     return { widgetKey: widget.key };
+  }
+
+  // ---------------- members ----------------
+
+  async listMembers(projectId: string, page?: PageDto) {
+    const paged = page?.page !== undefined || page?.limit !== undefined;
+    const { skip, take, page: p, limit } = toPaging(page ?? {});
+    const [items, total] = await Promise.all([
+      this.prisma.membership.findMany({
+        where: { projectId },
+        include: { user: { select: { id: true, name: true, email: true } } },
+        orderBy: { createdAt: "asc" },
+        ...(paged ? { skip, take } : {}),
+      }),
+      paged ? this.prisma.membership.count({ where: { projectId } }) : 0,
+    ]);
+    return paged ? { items, total, page: p, limit } : items;
+  }
+
+  async getMember(projectId: string, membershipId: string) {
+    const member = await this.prisma.membership.findFirst({
+      where: { id: membershipId, projectId },
+      include: { user: { select: { id: true, name: true, email: true } } },
+    });
+    if (!member) throw new NotFoundException("Member not found");
+    return member;
+  }
+
+  private async findMember(projectId: string, membershipId: string) {
+    // projectId in the filter stops a Lead editing another project's member.
+    const member = await this.prisma.membership.findFirst({
+      where: { id: membershipId, projectId },
+    });
+    if (!member) throw new NotFoundException("Member not found");
+    return member;
+  }
+
+  private async assertAnotherLead(projectId: string, excludingId: string) {
+    const others = await this.prisma.membership.count({
+      where: { projectId, role: ProjectRole.LEAD, id: { not: excludingId } },
+    });
+    if (others === 0) {
+      throw new BadRequestException("A project must keep at least one Lead");
+    }
   }
 
   async connectGithub(projectId: string, actorId: string, dto: ConnectGithubDto) {
