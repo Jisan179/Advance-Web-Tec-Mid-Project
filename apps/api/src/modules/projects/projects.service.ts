@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { Prisma, Project, ProjectRole } from "@prisma/client";
+import { Prisma, Project, ProjectRole, TicketStatus } from "@prisma/client";
 import { toPaging } from "@/common/utils/pagination";
 import { PrismaService } from "@/providers/database/prisma.service";
 import { StorageService } from "@/providers/storage/storage.service";
@@ -284,5 +284,61 @@ export class ProjectsService {
       this.prisma.webhookDelivery.count({ where: { projectId } }),
     ]);
     return { items, total, page: p, limit };
+  }
+
+  // ---------------- overview ----------------
+
+  async overview(projectId: string) {
+    const [byStatus, bySeverity, builds, approvals, activity] =
+      await Promise.all([
+        this.prisma.ticket.groupBy({
+          by: ["status"],
+          where: { projectId },
+          _count: true,
+        }),
+        this.prisma.ticket.groupBy({
+          by: ["severity"],
+          where: { projectId },
+          _count: true,
+        }),
+        this.prisma.build.groupBy({
+          by: ["status"],
+          where: { projectId },
+          _count: true,
+        }),
+        this.prisma.buildApproval.findMany({
+          where: { build: { projectId } },
+          orderBy: { decidedAt: "desc" },
+          take: 10,
+          include: {
+            user: { select: { name: true } },
+            build: { select: { name: true, branch: true } },
+          },
+        }),
+        this.prisma.activityLog.findMany({
+          where: { projectId },
+          orderBy: { createdAt: "desc" },
+          take: 20,
+          include: { actor: { select: { name: true } } },
+        }),
+      ]);
+    const count = (rows: { _count: number }[]) =>
+      rows.reduce((n, r) => n + r._count, 0);
+    return {
+      tickets: {
+        total: count(byStatus),
+        open: byStatus.find((r) => r.status === TicketStatus.OPEN)?._count ?? 0,
+        inProgress:
+          byStatus.find((r) => r.status === TicketStatus.IN_PROGRESS)?._count ?? 0,
+        resolved:
+          byStatus.find((r) => r.status === TicketStatus.RESOLVED)?._count ?? 0,
+        verified:
+          byStatus.find((r) => r.status === TicketStatus.VERIFIED)?._count ?? 0,
+        bySeverity: Object.fromEntries(bySeverity.map((r) => [r.severity, r._count])),
+      },
+      builds: Object.fromEntries(builds.map((r) => [r.status, r._count])),
+      approvals,
+      activity,
+    };
   }
 }
