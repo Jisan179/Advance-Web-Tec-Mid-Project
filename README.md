@@ -34,6 +34,10 @@ The full write-up (requirements, use cases, ER diagram, normalization, API list,
 | **Project Lead** (`LEAD`) | Developer operations plus project settings, members and roles, report-ingestion key rotation, allowed origins and GitHub connection. |
 | **GitHub** (system) | Sends signed `pull_request` events to the webhook endpoint. |
 
+### Use case diagram
+
+![Use case diagram of the InspectFlow REST API](docs/images/use-case-diagram.png)
+
 ## Tech stack
 
 NestJS 11 (TypeScript, Express) · PostgreSQL 17 · Prisma 6 (ORM and migrations) · Passport-JWT · bcrypt · class-validator / class-transformer · Zod · Swagger (`@nestjs/swagger`) · Sharp and Multer · S3-compatible storage (optional) · Jest.
