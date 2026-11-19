@@ -1,6 +1,6 @@
 # InspectFlow — Tester / Client Reviewer
 
-Tester features include reporting issues, viewing reports, verifying or reopening fixes, and reviewing builds. This branch also includes the website UI.
+Tester features include reporting issues, viewing reports, verifying or reopening fixes, and reviewing builds. This branch contains the backend API and Postman evidence; use Postman or Swagger to demonstrate the API.
 
 ## Local setup
 
@@ -89,7 +89,7 @@ Expected **201 Created**. IF-1 changes from `RESOLVED` to `VERIFIED`.
 
 ### 6. Read the saved ticket again
 
-Expected **200 OK**. A separate read returns `status: "VERIFIED"`, confirming the update is persisted..
+Expected **200 OK**. A separate read returns `status: "VERIFIED"`, confirming the update is persisted.
 
 > **GET** `http://localhost:5002/tickets/56c38037-7818-44f2-a80b-0703af23e868`
 
@@ -140,14 +140,11 @@ Expected **201 Created**. The response records the `CHANGES_REQUESTED` decision,
 - **400 / 404** — check method, JSON and IDs from your own database.
 - **409** — inspect the current ticket/build state. Check 4 deliberately expects a blocked approval.
 
-Optional browser pages are Dashboard `http://localhost:3001/login`, Staging `http://localhost:4001/`, and Swagger `http://localhost:5002/api/docs`. Dashboard and Staging require their respective apps to be running.
+Swagger UI is available at `http://localhost:5002/api/docs` while the API is running.
 
 ## Code reference
 
 - [API routes and business rules](apps/api/src/modules)
 - [Database schema, migrations and demo seed](apps/api/prisma)
-- [Dashboard UI](apps/web/src)
-- [Staging HTML, CSS and JavaScript](apps/staging/src)
-- [Screenshot reporting widget](apps/widget/src)
 
-After integrating the team branches, deployment configuration for Vercel, Render and Supabase and separate deployed-API screenshots will be handled later.
+These screenshots document a local API demonstration; they do not demonstrate a deployed API.
