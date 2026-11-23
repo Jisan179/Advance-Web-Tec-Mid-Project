@@ -2,7 +2,7 @@
   "name": "inspectflow",
   "private": true,
   "version": "1.0.0",
-  "description": "Inspect Flow 1: Tester and Client Reviewer demo",
+  "description": "Inspect Flow : Tester and Client Reviewer demo",
   "scripts": {
     "dev:api": "pnpm --filter @inspectflow/api start:dev",
     "build": "pnpm --workspace-concurrency=1 -r build",
